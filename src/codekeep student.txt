@@ -1,0 +1,164 @@
+// [5] STUDENT RESULTS
+app.get('/api/student-results/:student_id', async (req, res) => {
+    try {
+        const { student_id } = req.params;
+
+        // Get student
+        const { data: student, error: studentError } = await supabase
+            .from('users')
+            .select('id, full_name, class, student_id')
+            .eq('student_id', student_id)
+            .eq('role', 'student')
+            .single();
+
+        if (studentError || !student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        // Get results
+        const { data: results, error: resultsError } = await supabase
+            .from('results')
+            .select('*')
+            .eq('student_id', student.id)
+            .order('subject', { ascending: true });
+
+        if (resultsError) throw resultsError;
+
+        res.json({ student, results });
+
+    } catch (error) {
+        console.error('Results error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// [6] UPLOAD RESULTS (AUTH PROTECTED)
+app.post('/api/upload-results', authenticateToken, async (req, res) => {
+    try {
+        // Authorization check
+        if (!['admin', 'teacher'].includes(req.user.role)) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        // Validate input
+        const { student_id, term, session, subject, ca_score, exam_score } = req.body;
+        if (!student_id || !term || !session || !subject || ca_score == null || exam_score == null) {
+            return res.status(400).json({ message: 'All fields required' });
+        }
+
+        // Get student
+        const { data: student, error: studentError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('student_id', student_id)
+            .single();
+
+        if (studentError || !student) throw new Error('Student not found');
+
+        // Calculate grades
+        const total_score = parseInt(ca_score) + parseInt(exam_score);
+        let grade, remark;
+
+        if (total_score >= 70) { grade = 'A'; remark = 'Excellent'; }
+        else if (total_score >= 60) { grade = 'B'; remark = 'Very Good'; }
+        else if (total_score >= 50) { grade = 'C'; remark = 'Good'; }
+        else if (total_score >= 40) { grade = 'D'; remark = 'Pass'; }
+        else { grade = 'F'; remark = 'Fail'; }
+
+        // Insert result
+        const { error } = await supabase
+            .from('results')
+            .insert([{
+                student_id: student.id,
+                term,
+                session,
+                ca_score,
+                exam_score,
+                total_score,
+                grade,
+                remark,
+                subject
+            }]);
+
+        if (error) throw error;
+
+        res.json({ message: 'Result uploaded successfully' });
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// [7] PRINT RESULT
+app.get('/api/print-student-result/:student_id/:term/:session', async (req, res) => {
+    try {
+        const { student_id, term, session } = req.params;
+
+        // Get student
+        const { data: student, error: studentError } = await supabase
+            .from('users')
+            .select('id, full_name, student_id, class, gender, profile_picture')
+            .eq('student_id', student_id)
+            .single();
+
+        if (studentError || !student) throw new Error('Student not found');
+
+        // Get results
+        const { data: results, error: resultsError } = await supabase
+            .from('results')
+            .select('subject, ca_score, exam_score, total_score, grade, remark')
+            .eq('student_id', student.id)
+            .eq('term', term)
+            .eq('session', session);
+
+        if (resultsError) throw resultsError;
+
+        // Calculate overall
+        const totalObtainable = results.length * 100;
+        const totalScored = results.reduce((sum, r) => sum + r.total_score, 0);
+        const percentage = totalObtainable > 0 ? (totalScored / totalObtainable) * 100 : 0;
+
+        // Determine overall grade
+        let overallGrade, overallRemark;
+        if (percentage >= 75) { overallGrade = 'A'; overallRemark = 'Excellent'; }
+        else if (percentage >= 65) { overallGrade = 'B'; overallRemark = 'Very Good'; }
+        else if (percentage >= 55) { overallGrade = 'C'; overallRemark = 'Good'; }
+        else if (percentage >= 45) { overallGrade = 'D'; overallRemark = 'Pass'; }
+        else { overallGrade = 'F'; overallRemark = 'Fail'; }
+
+        // Response
+        res.json({
+            schoolInfo: {
+                name: 'ESTAPAUL GROUP OF SCHOOLS',
+                motto: 'One with God',
+                logo: '/assets/logo.png',
+                principal_name: 'Mr Olusegun'
+            },
+            studentDetails: {
+                ...student,
+                session
+            },
+            subjectResults: results,
+            overallPerformance: {
+                totalObtainable,
+                totalScored,
+                percentage,
+                overallGrade,
+                overallRemark,
+                classTeacherComment: "Good performance, keep it up",
+                headTeacherComment: "Approved for promotion"
+            }
+        });
+
+    } catch (error) {
+        console.error('Print error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// Error Handler
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Server error');
+});

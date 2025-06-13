@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from "framer-motion";
-import { Particles } from "@tsparticles/react";
 import './HomePage.css';
 
 function HomePage() {
@@ -10,8 +8,9 @@ function HomePage() {
 
   useEffect(() => {
     setIsLoading(true);
+    // API call with actual school data
     const timer = setTimeout(() => {
-      setSchoolInfo({
+      const mockSchoolInfo = {
         name: "ESTAPAUL Group of Schools",
         logo_url: "https://bqzqgpvklburfthmhlpq.supabase.co/storage/v1/object/public/school-media//logo.png",
         motto: "Knowledge, Character, Excellence (One with God)",
@@ -24,9 +23,12 @@ function HomePage() {
         academics: "Our curriculum is robust, designed to meet national standards, and delivered by experienced educators.",
         phone: "+234 8104727116",
         email: "info@estapaulschools.edu"
-      });
+      };
+      
+      setSchoolInfo(mockSchoolInfo);
       setIsLoading(false);
     }, 1000);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -50,114 +52,51 @@ function HomePage() {
 
   return (
     <div className="homepage-content">
-      <Particles
-        options={{
-          fullScreen: { enable: false },
-          background: { color: { value: "#e0eafc" } },
-          particles: {
-            color: { value: "#fe7e5f" },
-            links: { enable: true, color: "#fe7e5f", distance: 140 },
-            move: { enable: true, speed: 1 },
-            number: { value: 30 },
-            opacity: { value: 0.2 },
-            shape: { type: "circle" },
-            size: { value: 3 },
-          }
-        }}
-        style={{
-          position: "absolute",
-          zIndex: 0,
-          top: 0,
-          left: 0,
-          width: "100vw",
-          height: "100vh"
-        }}
-      />
-
       {schoolInfo && (
         <>
-          <motion.section
-            className="hero"
-            initial={{ opacity: 0, y: -40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1 }}
-          >
-            <motion.img
-              src={schoolInfo.logo_url}
-              alt="School Logo"
-              className="school-logo animated-logo"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 100, delay: 0.4 }}
-              onError={e => {
-                e.target.onerror = null;
-                e.target.src = "https://via.placeholder.com/200x200.png?text=ESTAPAUL+Logo";
+          <div className="homepage-text-section">
+            <h2>Welcome to {schoolInfo.name}</h2>
+            <p className="tagline">"{schoolInfo.motto}"</p>
+            
+            <div className="info-block">
+              <p><strong>Established:</strong> {schoolInfo.established}</p>
+              <p><strong>Principal:</strong> {schoolInfo.principal_name}</p>
+              <p><strong>Address:</strong> {schoolInfo.address}</p>
+            </div>
+
+            <h3>About Our School</h3>
+            <p>{schoolInfo.description}</p>
+          </div>
+
+          <div className="homepage-image-section">
+            <img 
+              src={schoolInfo.logo_url} 
+              alt="School Logo" 
+              className="school-logo" 
+              onError={(e) => {
+                e.target.onerror = null; 
+                e.target.src = "https://via.placeholder.com/300x150.png?text=ESTAPAUL+Logo"
               }}
             />
-            <motion.h1 className="school-name"
-              initial={{ opacity: 0, y: 25 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-            >
-              {schoolInfo.name}
-            </motion.h1>
-            <motion.p className="school-motto"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-            >
-              "{schoolInfo.motto}"
-            </motion.p>
-            <motion.a
-              href="/admissions"
-              className="cta-button"
-              whileHover={{ scale: 1.07, background: "linear-gradient(90deg, #1a2c5b 50%, #fe7e5f 100%)" }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              Apply Now
-            </motion.a>
-          </motion.section>
+          </div>
 
-          <main className="info-grid">
-            <motion.div className="info-card"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1 }}
-            >
-              <h2>About Our School</h2>
-              <p>{schoolInfo.description}</p>
-              <div className="info-list">
-                <div><strong>Established:</strong> {schoolInfo.established}</div>
-                <div><strong>Principal:</strong> {schoolInfo.principal_name}</div>
-                <div><strong>Address:</strong> {schoolInfo.address}</div>
-              </div>
-            </motion.div>
-            <motion.div className="info-card"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2 }}
-            >
-              <h2>Admissions</h2>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <h3>Admissions</h3>
+            <div className="info-block">
               <p>{schoolInfo.admissions}</p>
-            </motion.div>
-            <motion.div className="info-card"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.4 }}
-            >
-              <h2>Academics</h2>
+            </div>
+
+            <h3>Academics</h3>
+            <div className="info-block">
               <p>{schoolInfo.academics}</p>
-            </motion.div>
-            <motion.div className="info-card"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.6 }}
-            >
-              <h2>Contact Us</h2>
+            </div>
+
+            <h3>Contact Us</h3>
+            <div className="info-block">
               <p><strong>Phone:</strong> {schoolInfo.phone}</p>
-              <p><strong>Email:</strong> <a href={`mailto:${schoolInfo.email}`}>{schoolInfo.email}</a></p>
-            </motion.div>
-          </main>
+              <p><strong>Email:</strong> {schoolInfo.email}</p>
+            </div>
+          </div>
         </>
       )}
     </div>

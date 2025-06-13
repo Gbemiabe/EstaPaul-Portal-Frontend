@@ -25,7 +25,7 @@ const generateSessions = () => {
 };
 const ALL_SESSIONS = generateSessions();
 
-const API_BASE_URL = 'http://localhost:3001/api'; 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api'; 
 
 function AdminDashboard({ adminUser, onLogout, token, allClasses, allSessions }) { 
   const [activeTab, setActiveTab] = useState('createUser'); 

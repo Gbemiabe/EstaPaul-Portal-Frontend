@@ -11,18 +11,17 @@ import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard';
 import AdminDashboard from './AdminDashboard';  
 
-// Base URL for your backend API (ensure this matches your server.js port)
-const API_BASE_URL = 'http://localhost:3001/api';
+// URL for the backend API
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
-// Define the precise order of classes for promotion and general use
-// These constants are now moved to App.js to be shared across dashboards
+
 const CLASS_ORDER = [
   'Creche', 'KG 1', 'KG 2', 'Nursery 1', 'Nursery 2', 'Primary 1',
   'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'JSS 1',
   'JSS 2', 'JSS 3', 'SS1', 'SS2', 'SS3'
 ];
 
-// ALL_CLASSES will now directly use CLASS_ORDER for consistency
+// ALL_CLASSES directly use CLASS_ORDER
 const ALL_CLASSES = [...CLASS_ORDER];
 
 // Define terms and a plausible range of sessions

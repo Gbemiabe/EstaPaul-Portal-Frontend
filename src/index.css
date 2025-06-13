@@ -1,13 +1,102 @@
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(120deg, #e0eafc 0%, #cfdef3 100%);
+  min-height: 100vh;
+  color: #1a2c5b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.4s;
+}
+
+a {
+  color: #fe7e5f;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover {
+  color: #1a2c5b;
+  text-decoration: underline;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', 'Segoe UI', 'Roboto', sans-serif;
+  color: #1a2c5b;
+  margin-top: 0;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+  font-family: 'Fira Mono', 'source-code-pro', Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+  background: #f3f6fa;
+  color: #fe7e5f;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+button, .button, .cta-button {
+  padding: 0.75em 2em;
+  font-size: 1em;
+  border: none;
+  border-radius: 30px;
+  background: #1a2c5b;
+  color: #fff;
+  font-weight: bold;
+  box-shadow: 0 8px 24px rgba(26,44,91,0.08);
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+}
+button:hover, .button:hover, .cta-button:hover {
+  background: #fe7e5f;
+  color: #fff;
+  transform: translateY(-4px) scale(1.05);
+}
+
+input, select, textarea {
+  font-family: inherit;
+  padding: 0.6em 1em;
+  border-radius: 6px;
+  border: 1px solid #dadada;
+  margin: 0.3em 0;
+  font-size: 1em;
+  background: #fafdff;
+  transition: border 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  border: 1.5px solid #fe7e5f;
+  outline: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  background: #e0eafc;
+}
+::-webkit-scrollbar-thumb {
+  background: #cfdef3;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fe7e5f;
+}
+
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 2em;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #cfdef3;
+  margin: 2em 0;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 1em;
+  }
+  h1 {
+    font-size: 2em;
+  }
 }

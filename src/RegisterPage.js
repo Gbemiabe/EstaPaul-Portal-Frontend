@@ -1,10 +1,11 @@
-// frontend/src/RegisterPage.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Auth.css'; // Use the same CSS for consistent styling
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api'; // Now using env variable
+
 function RegisterPage() {
-    const [role, setRole] = useState('student'); // Default role for selection
+    const [role, setRole] = useState('student');
     const [message, setMessage] = useState('');
     const navigate = useNavigate();
 
@@ -42,16 +43,16 @@ function RegisterPage() {
         formData.append('picture', studentPicture);
 
         try {
-            const response = await fetch('http://localhost:3000/api/auth/register/student', {
+            const response = await fetch(`${API_BASE_URL}/auth/register/student`, {
                 method: 'POST',
-                body: formData, // FormData automatically sets 'Content-Type': 'multipart/form-data'
+                body: formData,
             });
 
             const data = await response.json();
 
             if (response.ok) {
                 setMessage(data.message + ' You can now log in.');
-                localStorage.setItem('token', data.token); // Store token if provided
+                localStorage.setItem('token', data.token);
                 setTimeout(() => {
                     navigate('/login');
                 }, 2000);
@@ -69,7 +70,7 @@ function RegisterPage() {
         setMessage('');
 
         try {
-            const response = await fetch('http://localhost:3000/api/auth/register/teacher', {
+            const response = await fetch(`${API_BASE_URL}/auth/register/teacher`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -87,7 +88,7 @@ function RegisterPage() {
 
             if (response.ok) {
                 setMessage(data.message + ' You can now log in.');
-                localStorage.setItem('token', data.token); // Store token if provided
+                localStorage.setItem('token', data.token);
                 setTimeout(() => {
                     navigate('/login');
                 }, 2000);

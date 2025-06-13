@@ -1,28 +1,25 @@
 // frontend/src/LoginPage.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Removed import './Auth.css'; to resolve compilation error in this environment.
-// Applying Tailwind classes directly for basic styling.
 
-// IMPORTANT: Ensure this API_BASE_URL matches the port your server.js is running on (currently 3001)
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
 // LoginPage now accepts 'onLoginSuccess' as a prop from App.js
 function LoginPage({ onLoginSuccess }) {
     const [identifier, setIdentifier] = useState(''); // This will be student_id or email
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState('student'); // Default role for login
-    const [message, setMessage] = useState(''); // For displaying general messages (success/error)
-    const [loading, setLoading] = useState(false); // To manage button loading state
-    const navigate = useNavigate(); // Hook for programmatic navigation
+    const [role, setRole] = useState('student'); 
+    const [message, setMessage] = useState(''); 
+    const [loading, setLoading] = useState(false); 
+    const navigate = useNavigate(); 
 
     console.log('LoginPage rendered with onLoginSuccess:', typeof onLoginSuccess);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         console.log('Login form submitted with:', { identifier, role });
-        setMessage(''); // Clear previous messages
-        setLoading(true); // Start loading
+        setMessage(''); 
+        setLoading(true);
 
         try {
             console.log('Making login request to:', `${API_BASE_URL}/auth/login`);
@@ -40,9 +37,7 @@ function LoginPage({ onLoginSuccess }) {
 
             if (response.ok) {
                 console.log('Login successful, calling onLoginSuccess with:', { user: data.user, token: data.token });
-                // Instead of direct localStorage.setItem and navigate,
-                // call the onLoginSuccess prop provided by App.js
-                // App.js will then manage localStorage and navigation.
+               
                 if (onLoginSuccess) {
                     onLoginSuccess(data.user, data.token);
                 } else {
@@ -57,7 +52,7 @@ function LoginPage({ onLoginSuccess }) {
             console.error('Login error:', error);
             setMessage('Network error. Please try again later.');
         } finally {
-            setLoading(false); // End loading
+            setLoading(false); 
         }
     };
 
@@ -106,7 +101,7 @@ function LoginPage({ onLoginSuccess }) {
                     <button 
                         type="submit" 
                         className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={loading} // Disable button while loading
+                        disabled={loading} 
                     >
                         {loading ? 'Logging In...' : 'Login'}
                     </button>

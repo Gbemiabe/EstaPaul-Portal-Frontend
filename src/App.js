@@ -2,14 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import HomePage from './HomePage';
-import LoginPage from './LoginPage'; // Assuming LoginPage.js handles login form and calls onLoginSuccess
+import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
 import './App.css';
 
 // Import your dashboard components
 import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard';
-import AdminDashboard from './AdminDashboard';  
+import AdminDashboard from './AdminDashboard';
+import ForgotPasswordRequest from './ForgotPasswordRequest'; // Assuming it's in the same directory or adjust path
+import ResetPassword from './ResetPassword'; // Assuming it's in the same directory or adjust path
+
 
 // URL for the backend API
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
@@ -181,9 +184,9 @@ function AppContent() {
     setToken(authToken);
     localStorage.setItem('userToken', authToken);
     localStorage.setItem('userDetails', JSON.stringify(loggedInUser)); // Store user details in localStorage
-    
+
     console.log('About to navigate to dashboard for role:', loggedInUser.role);
-    
+
     // Redirect to appropriate dashboard based on role
     switch (loggedInUser.role) {
       case 'admin':
@@ -235,34 +238,38 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           {/* Pass the handleLoginSuccess callback to the LoginPage */}
-          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} /> 
+          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/admissions" element={<AdmissionsPage />} />
           <Route path="/contact" element={<ContactUsPage />} />
 
+          {/* New password recovery routes */}
+          <Route path="/forgot-password" element={<ForgotPasswordRequest />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
           {/* Conditional routes for dashboards */}
           {user && user.role === 'student' && (
-            <Route 
-              path="/student-dashboard" 
-              element={<StudentDashboard studentUser={user} onLogout={handleLogout} token={token} />} 
+            <Route
+              path="/student-dashboard"
+              element={<StudentDashboard studentUser={user} onLogout={handleLogout} token={token} />}
             />
           )}
           {user && user.role === 'teacher' && (
-            <Route 
-              path="/teacher-dashboard" 
-              element={<TeacherDashboard teacherUser={user} onLogout={handleLogout} token={token} />} 
+            <Route
+              path="/teacher-dashboard"
+              element={<TeacherDashboard teacherUser={user} onLogout={handleLogout} token={token} />}
             />
           )}
           {user && user.role === 'admin' && (
-            <Route 
-              path="/admin-dashboard" 
-              element={<AdminDashboard 
-                         adminUser={user} 
-                         onLogout={handleLogout} 
-                         token={token} 
-                         allClasses={ALL_CLASSES} // Pass constants to AdminDashboard
-                         allSessions={ALL_SESSIONS} // Pass constants to AdminDashboard
-                       />} 
+            <Route
+              path="/admin-dashboard"
+              element={<AdminDashboard
+                           adminUser={user}
+                           onLogout={handleLogout}
+                           token={token}
+                           allClasses={ALL_CLASSES} // Pass constants to AdminDashboard
+                           allSessions={ALL_SESSIONS} // Pass constants to AdminDashboard
+                         />}
             />
           )}
 

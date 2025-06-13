@@ -56,8 +56,8 @@ function TeacherDashboard({ teacherUser, token }) {
   const [submittingResults, setSubmittingResults] = useState(false);
   const [addingSubject, setAddingSubject] = useState(false);
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
-  const [fetchingResults, setFetchingResults] = useState(false); // New loading state for fetching results
-  const [prefilling, setPrefilling] = useState(false); // New loading state for prefilling
+  const [fetchingResults, setFetchingResults] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
 
   // Handle logout
   const handleLogout = () => {
@@ -84,7 +84,7 @@ function TeacherDashboard({ teacherUser, token }) {
   const fetchClassStudents = async (teacherClass) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/teacher/students?class=${encodeURIComponent(teacherClass)}`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/students?class=${encodeURIComponent(teacherClass)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -108,7 +108,7 @@ function TeacherDashboard({ teacherUser, token }) {
   // Fetch subjects
   const fetchSubjects = async (teacherClass) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/teacher/subjects?class=${encodeURIComponent(teacherClass)}`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/subjects?class=${encodeURIComponent(teacherClass)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -135,7 +135,7 @@ function TeacherDashboard({ teacherUser, token }) {
     }
     setPrefilling(true);
     try {
-        const url = `${API_BASE_URL}/api/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+        const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
         console.log("fetchAcademicResultForPrefill: Fetching from URL:", url);
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -143,9 +143,9 @@ function TeacherDashboard({ teacherUser, token }) {
         if (!response.ok) {
             if (response.status === 404) {
                 console.log(`No existing academic result found (404) for ${studentId}, subject ${subjectId}, term ${term}, session ${session}.`);
-                return null; // No existing result
+                return null; 
             }
-            const errorText = await response.text(); // Capture error body
+            const errorText = await response.text(); 
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
         const data = await response.json();
@@ -167,7 +167,7 @@ function TeacherDashboard({ teacherUser, token }) {
     }
     setPrefilling(true);
     try {
-        const url = `${API_BASE_URL}/api/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+        const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
         console.log("fetchPsychomotorForPrefill: Fetching from URL:", url);
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -367,7 +367,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
     setSubmittingResults(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/teacher/results`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/results`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -450,7 +450,7 @@ function TeacherDashboard({ teacherUser, token }) {
     setSubmittingAttendance(true);
     setAttendanceSuccess(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/teacher/attendance`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/attendance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -495,7 +495,7 @@ function TeacherDashboard({ teacherUser, token }) {
     }
     setAddingSubject(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/teacher/subjects`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/subjects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,5 +1,3 @@
-// TeacherDashboard.js - Complete Version
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,9 +11,10 @@ import {
   FaSearch,
   FaPlus,
   FaArrowLeft,
-  FaSpinner // Added for loading states
+  FaSpinner,
+  FaChartBar
 } from 'react-icons/fa';
-import './TeacherDashboard.css'; // Ensure this CSS file exists and will be updated
+import './TeacherDashboard.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001/api";
 
@@ -28,13 +27,13 @@ function TeacherDashboard({ teacherUser, token }) {
   const [subjects, setSubjects] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [results, setResults] = useState(null); // Changed to null for clearer initial state
+  const [results, setResults] = useState(null);
   const [selectedTerm, setSelectedTerm] = useState('1st');
   const [session, setSession] = useState('2023/2024');
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Result upload state
+  const [classOverallResults, setClassOverallResults] = useState(null);
+  const [fetchingClassResults, setFetchingClassResults] = useState(false);
   const [pt1, setPt1] = useState('');
   const [pt2, setPt2] = useState('');
   const [pt3, setPt3] = useState('');
@@ -46,20 +45,15 @@ function TeacherDashboard({ teacherUser, token }) {
   const [responsibility, setResponsibility] = useState('');
   const [creativity, setCreativity] = useState('');
   const [sports, setSports] = useState('');
-
-  // Attendance state
   const [daysOpened, setDaysOpened] = useState('');
   const [daysPresent, setDaysPresent] = useState('');
   const [attendanceSuccess, setAttendanceSuccess] = useState(null);
-
-  // Loading states for actions
   const [submittingResults, setSubmittingResults] = useState(false);
   const [addingSubject, setAddingSubject] = useState(false);
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
   const [fetchingResults, setFetchingResults] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
 
-  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
@@ -80,7 +74,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   }, [teacherUser, token, navigate]);
 
-  // Fetch class students
   const fetchClassStudents = async (teacherClass) => {
     setLoading(true);
     try {
@@ -105,7 +98,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // Fetch subjects
   const fetchSubjects = async (teacherClass) => {
     try {
       const response = await fetch(`${API_BASE_URL}/teacher/subjects?class=${encodeURIComponent(teacherClass)}`, {
@@ -127,29 +119,61 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // New function to fetch a specific subject's result for pre-filling
+  const fetchClassOverallResults = async () => {
+    if (!teacherInfo?.class || !selectedTerm || !session) {
+      alert('Please select both term and session to view class results');
+      return;
+    }
+    
+    setFetchingClassResults(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setClassOverallResults(data);
+    } catch (error) {
+      console.error('Error fetching class overall results:', error);
+      alert(`Failed to fetch class results: ${error.message}`);
+    } finally {
+      setFetchingClassResults(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'class-results' && teacherInfo?.class) {
+      fetchClassOverallResults();
+    }
+  }, [activeTab, selectedTerm, session, teacherInfo?.class]);
+
   const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
     if (!studentId || !subjectId || !term || !session) {
-        console.log("fetchAcademicResultForPrefill: Missing parameters", { studentId, subjectId, term, session });
         return;
     }
     setPrefilling(true);
     try {
         const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-        console.log("fetchAcademicResultForPrefill: Fetching from URL:", url);
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) {
             if (response.status === 404) {
-                console.log(`No existing academic result found (404) for ${studentId}, subject ${subjectId}, term ${term}, session ${session}.`);
-                return null; 
+                return null;
             }
-            const errorText = await response.text(); 
+            const errorText = await response.text();
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
         const data = await response.json();
-        console.log("fetchAcademicResultForPrefill: Received data:", data);
         return data;
     } catch (error) {
         console.error("Failed to fetch academic result for prefill:", error);
@@ -159,29 +183,24 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // New function to fetch psychomotor scores for pre-filling (per student, per term, per session)
   const fetchPsychomotorForPrefill = async (studentId, term, session) => {
     if (!studentId || !term || !session) {
-        console.log("fetchPsychomotorForPrefill: Missing parameters", { studentId, term, session });
         return;
     }
     setPrefilling(true);
     try {
         const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-        console.log("fetchPsychomotorForPrefill: Fetching from URL:", url);
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) {
             if (response.status === 404) {
-                console.log(`No existing psychomotor/attendance result found (404) for ${studentId}, term ${term}, session ${session}.`);
-                return null; // No existing result
+                return null;
             }
-            const errorText = await response.text(); // Capture error body
+            const errorText = await response.text();
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
         const data = await response.json();
-        console.log("fetchPsychomotorForPrefill: Received data:", data);
         return data;
     } catch (error) {
         console.error("Failed to fetch psychomotor result for prefill:", error);
@@ -191,106 +210,69 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // useEffect to handle pre-filling when relevant selections change in 'upload' tab
   useEffect(() => {
     if (activeTab === 'upload') {
-        console.log("useEffect [upload tab]: Selections changed, attempting prefill...", { selectedStudent, selectedSubject, selectedTerm, session });
-      // Clear all fields initially when selections change or tab is activated
       setPt1(''); setPt2(''); setPt3(''); setExam('');
       setAttendance(''); setPunctuality(''); setNeatness('');
       setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
-      setDaysOpened(''); setDaysPresent(''); // Also clear attendance fields on this tab
+      setDaysOpened(''); setDaysPresent('');
 
-      // Fetch academic results if all relevant fields are selected
       if (selectedStudent && selectedSubject && selectedTerm && session) {
-            console.log("useEffect [upload tab]: Calling fetchAcademicResultForPrefill");
         fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
           .then(data => {
             if (data && data.result) {
-                console.log("useEffect [upload tab]: Academic prefill data:", data.result);
               setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
               setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
               setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
               setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
-            } else {
-                console.log("useEffect [upload tab]: No academic data or result object found for prefill.");
-                setPt1(''); setPt2(''); setPt3(''); setExam(''); // Ensure fields are cleared if no data
             }
           });
       }
 
-      // Always fetch psychomotor results if student, term, and session are selected
       if (selectedStudent && selectedTerm && session) {
-            console.log("useEffect [upload tab]: Calling fetchPsychomotorForPrefill");
         fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
           .then(data => {
             if (data) {
-                console.log("useEffect [upload tab]: Psychomotor prefill data:", data);
-                // Psychomotor skills are nested under 'psychomotor'
-                if (data.psychomotor) {
-                    console.log("Psychomotor skills data:", data.psychomotor);
-                    setAttendance(data.psychomotor.attendance || '');
-                    setPunctuality(data.psychomotor.punctuality || '');
-                    setNeatness(data.psychomotor.neatness || '');
-                    setHonesty(data.psychomotor.honesty || '');
-                    setResponsibility(data.psychomotor.responsibility || '');
-                    setCreativity(data.psychomotor.creativity || '');
-                    setSports(data.psychomotor.sports || '');
-                } else {
-                    console.log("No psychomotor skills object found.");
-                    setAttendance(''); setPunctuality(''); setNeatness('');
-                    setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
-                }
-
-                // Attendance days are at the top level of the data object
-                if (data.days_opened !== undefined && data.days_present !== undefined) {
-                    console.log("Attendance days data:", { days_opened: data.days_opened, days_present: data.days_present });
-                    setDaysOpened(data.days_opened.toString());
-                    setDaysPresent(data.days_present.toString());
-                } else {
-                    console.log("No attendance days data found.");
-                    setDaysOpened(''); setDaysPresent('');
-                }
-            } else {
-                console.log("useEffect [upload tab]: No psychomotor/attendance data received for prefill.");
+              if (data.psychomotor) {
+                setAttendance(data.psychomotor.attendance || '');
+                setPunctuality(data.psychomotor.punctuality || '');
+                setNeatness(data.psychomotor.neatness || '');
+                setHonesty(data.psychomotor.honesty || '');
+                setResponsibility(data.psychomotor.responsibility || '');
+                setCreativity(data.psychomotor.creativity || '');
+                setSports(data.psychomotor.sports || '');
+              }
+              if (data.days_opened !== undefined && data.days_present !== undefined) {
+                setDaysOpened(data.days_opened.toString());
+                setDaysPresent(data.days_present.toString());
+              }
             }
           });
       }
     }
   }, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
 
-
-  // useEffect to handle pre-filling for 'attendance' tab
   useEffect(() => {
     if (activeTab === 'attendance') {
-        console.log("useEffect [attendance tab]: Selections changed, attempting prefill...", { selectedStudent, selectedTerm, session });
-      // Clear attendance fields initially when selections change or tab is activated
       setDaysOpened('');
       setDaysPresent('');
-      setAttendanceSuccess(null); // Clear success message on student change or tab change
+      setAttendanceSuccess(null);
 
       if (selectedStudent && selectedTerm && session) {
-            console.log("useEffect [attendance tab]: Calling fetchPsychomotorForPrefill");
         fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
           .then(data => {
             if (data && data.days_opened !== undefined && data.days_present !== undefined) {
-                console.log("useEffect [attendance tab]: Attendance prefill data:", data);
               setDaysOpened(data.days_opened.toString());
               setDaysPresent(data.days_present.toString());
-            } else {
-                console.log("useEffect [attendance tab]: No attendance data received for prefill.");
-                setDaysOpened(''); setDaysPresent(''); // Clear if no data
             }
           });
       }
     }
   }, [activeTab, selectedStudent, selectedTerm, session, token]);
 
-
-  // Fetch student results for display (not pre-fill)
   const fetchStudentResults = async (studentId, term, session) => {
-    setFetchingResults(true); // Start loading
-    setResults(null); // Clear previous results
+    setFetchingResults(true);
+    setResults(null);
     try {
       if (!studentId || !term || !session) {
         const missing = [];
@@ -323,17 +305,16 @@ function TeacherDashboard({ teacherUser, token }) {
         throw new Error(data.message || `HTTP ${response.status}: ${responseText}`);
       }
       setResults(data);
-      setSelectedStudent(studentId); // Keep the student selected
-      setActiveTab('results'); // Switch to results tab
+      setSelectedStudent(studentId);
+      setActiveTab('results');
     } catch (error) {
       alert(`Error loading results: ${error.message}`);
-      setResults(null); // Ensure results are null on error
+      setResults(null);
     } finally {
-      setFetchingResults(false); // End loading
+      setFetchingResults(false);
     }
   };
 
-  // Submit results (academic and psychomotor)
   const handleSubmitResults = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {
@@ -353,13 +334,11 @@ function TeacherDashboard({ teacherUser, token }) {
       return;
     }
 
-    // Check if any academic score field is empty
     if ([pt1, pt2, pt3, exam].some(score => score === '' || isNaN(parseInt(score)))) {
       alert('Please enter valid numeric scores for all PTs and Exam.');
       return;
     }
 
-    // Check if any psychomotor skill is not selected
     if ([attendance, punctuality, neatness, honesty, responsibility, creativity, sports].some(skill => skill === '')) {
       alert('Please select a grade for all psychomotor skills.');
       return;
@@ -399,15 +378,12 @@ function TeacherDashboard({ teacherUser, token }) {
       }
 
       alert('Results uploaded successfully!');
-      // After successful upload, refresh the pre-filled data to reflect changes
-      // This will trigger the useEffect hooks again.
       if (selectedStudent && selectedSubject && selectedTerm && session) {
         fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session);
       }
       if (selectedStudent && selectedTerm && session) {
         fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session);
       }
-
     } catch (error) {
       alert(`Error uploading results: ${error.message}`);
     } finally {
@@ -415,7 +391,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // Reset upload form
   const resetUploadForm = () => {
     setSelectedStudent('');
     setSelectedSubject('');
@@ -432,7 +407,6 @@ function TeacherDashboard({ teacherUser, token }) {
     setSports('');
   };
 
-  // Submit attendance
   const handleSubmitAttendance = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {
@@ -473,11 +447,10 @@ function TeacherDashboard({ teacherUser, token }) {
       const data = await response.json();
       setAttendanceSuccess(data.message);
       setTimeout(() => {
-        // Reset only attendance-related states
         setDaysOpened('');
         setDaysPresent('');
         setAttendanceSuccess(null);
-        setSelectedStudent(''); // Also reset student selection for attendance form
+        setSelectedStudent('');
       }, 3000);
     } catch (error) {
       alert(`Error recording attendance: ${error.message}`);
@@ -486,7 +459,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // Add subject
   const handleAddSubject = async (e) => {
     e.preventDefault();
     if (!newSubject.trim()) {
@@ -513,7 +485,7 @@ function TeacherDashboard({ teacherUser, token }) {
       alert('Subject added successfully!');
       setNewSubject('');
       if (teacherInfo?.class) {
-        await fetchSubjects(teacherInfo.class); // Refresh subjects list
+        await fetchSubjects(teacherInfo.class);
       }
     } catch (error) {
       alert(`Error adding subject: ${error.message}`);
@@ -522,7 +494,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // Filter students based on search term
   const filteredStudents = classStudents.filter(student =>
     student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -580,11 +551,13 @@ function TeacherDashboard({ teacherUser, token }) {
             <li className={activeTab === 'add-subject' ? 'active' : ''} onClick={() => setActiveTab('add-subject')}>
               <FaPlus className="menu-icon" /> <span className="menu-text">Add Subject</span>
             </li>
+            <li className={activeTab === 'class-results' ? 'active' : ''} onClick={() => setActiveTab('class-results')}>
+              <FaChartBar className="menu-icon" /> <span className="menu-text">Class Results</span>
+            </li>
           </ul>
         </nav>
 
         <main className="dashboard-main-content">
-          {/* Students Section */}
           {activeTab === 'students' && (
             <section className="dashboard-section students-section">
               <div className="section-header">
@@ -645,7 +618,6 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {/* Subjects Section */}
           {activeTab === 'subjects' && (
             <section className="dashboard-section subjects-section">
               <div className="section-header">
@@ -703,7 +675,6 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {/* Upload Results Section */}
           {activeTab === 'upload' && (
             <section className="dashboard-section upload-results-section">
               <div className="section-header">
@@ -911,7 +882,6 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {/* Attendance Section */}
           {activeTab === 'attendance' && (
             <section className="dashboard-section record-attendance-section">
               <h2 className="section-title"><FaCalendarAlt /> Record Student Attendance {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h2>
@@ -1030,7 +1000,6 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {/* Add Subject Section */}
           {activeTab === 'add-subject' && (
             <section className="dashboard-section add-subject-section">
               <div className="section-header">
@@ -1085,7 +1054,6 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {/* Results Section */}
           {activeTab === 'results' && (
             <section className="dashboard-section student-results-section">
               <div className="section-header">
@@ -1124,10 +1092,10 @@ function TeacherDashboard({ teacherUser, token }) {
                               <th>Avg PT</th>
                               <th>Exam</th>
                               <th>Total</th>
-                              {results.term !== '1st' && <th>1st Term Total</th>} {/* Conditionally render */}
-                              {results.term === '3rd' && <th>2nd Term Total</th>} {/* Conditionally render */}
-                              {results.term !== '1st' && <th>Cum. Avg</th>} {/* Conditionally render */}
-                              <th>Class Avg</th> {/* Placeholder, requires backend logic to provide */}
+                              {results.term !== '1st' && <th>1st Term Total</th>}
+                              {results.term === '3rd' && <th>2nd Term Total</th>}
+                              {results.term !== '1st' && <th>Cum. Avg</th>}
+                              <th>Class Avg</th>
                               <th>Grade</th>
                               <th>Remark</th>
                             </tr>
@@ -1142,7 +1110,6 @@ function TeacherDashboard({ teacherUser, token }) {
                                 <td>{result.avg_pt !== undefined ? Math.round(result.avg_pt) : 'N/A'}</td>
                                 <td>{result.exam}</td>
                                 <td>{result.total_score}</td>
-                                {/* Conditionally render previous term scores */}
                                 {results.term !== '1st' && (
                                   <td>{result.first_term_total_score !== null ? result.first_term_total_score : 'N/A'}</td>
                                 )}
@@ -1152,7 +1119,7 @@ function TeacherDashboard({ teacherUser, token }) {
                                 {results.term !== '1st' && (
                                     <td>{result.subject_cum_avg !== null ? result.subject_cum_avg : 'N/A'}</td>
                                 )}
-                                <td>N/A</td> {/* Placeholder for Class Avg, needs backend */}
+                                <td>N/A</td>
                                 <td className={`grade-cell grade-${result.grade ? result.grade.toLowerCase() : ''}`}>{result.grade}</td>
                                 <td>{result.remark}</td>
                               </tr>
@@ -1242,6 +1209,91 @@ function TeacherDashboard({ teacherUser, token }) {
                   <button onClick={() => setActiveTab('students')} className="btn btn-primary">
                     Select another student
                   </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'class-results' && (
+            <section className="dashboard-section class-results-section">
+              <div className="section-header">
+                <h2 className="section-title"><FaChartBar /> Class Overall Results - {teacherInfo.class}</h2>
+                <div className="results-controls">
+                  <select
+                    value={selectedTerm}
+                    onChange={(e) => setSelectedTerm(e.target.value)}
+                    className="term-select"
+                  >
+                    <option value="1st">First Term</option>
+                    <option value="2nd">Second Term</option>
+                    <option value="3rd">Third Term</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={session}
+                    onChange={(e) => setSession(e.target.value)}
+                    placeholder="Session (e.g., 2023/2024)"
+                    className="session-input"
+                  />
+                  <button
+                    onClick={fetchClassOverallResults}
+                    className="btn btn-primary"
+                    disabled={fetchingClassResults}
+                  >
+                    {fetchingClassResults ? <FaSpinner className="spinner-icon" /> : 'Load Results'}
+                  </button>
+                </div>
+              </div>
+
+              {fetchingClassResults ? (
+                <div className="loading-state">
+                  <FaSpinner className="spinner-icon" />
+                  <p>Loading class results for {selectedTerm} term, {session} session...</p>
+                </div>
+              ) : classOverallResults ? (
+                <div className="class-results-container">
+                  <div className="results-summary-card">
+                    <h3>Class: {classOverallResults.class}</h3>
+                    <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
+                    <p>Total Students: {classOverallResults.results.length}</p>
+                  </div>
+
+                  <div className="table-responsive">
+                    <table className="data-table class-results-table">
+                      <thead>
+                        <tr>
+                          <th>Position</th>
+                          <th>Student Name</th>
+                          <th>Total Score</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {classOverallResults.results.map((student, index) => (
+                          <tr key={student.id}>
+                            <td>{student.position}</td>
+                            <td>{student.full_name}</td>
+                            <td>{student.term_total_score}</td>
+                            <td>
+                              <button
+                                onClick={() => {
+                                  setSelectedStudent(student.id);
+                                  fetchStudentResults(student.id, selectedTerm, session);
+                                }}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <p>No class results available. Select term and session, then click "Load Results".</p>
                 </div>
               )}
             </section>

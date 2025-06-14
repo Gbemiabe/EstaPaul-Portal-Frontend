@@ -272,50 +272,102 @@ useEffect(() => {
 }, [activeTab, selectedStudent, selectedTerm, session, token]);
 
   const fetchStudentResults = async (studentId, term, session) => {
-    setFetchingResults(true);
-    setResults(null);
-    try {
-      if (!studentId || !term || !session) {
-        const missing = [];
-        if (!studentId) missing.push('studentId');
-        if (!term) missing.push('term');
-        if (!session) missing.push('session');
-        alert(`Cannot load results. Missing: ${missing.join(', ')}`);
-        return;
-      }
-      const encodedStudentId = encodeURIComponent(studentId);
-      const encodedSession = encodeURIComponent(session);
-      const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      const responseText = await response.text();
-      if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
-        throw new Error('Server returned HTML error page instead of JSON');
-      }
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
-      }
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}: ${responseText}`);
-      }
-      setResults(data);
-      setSelectedStudent(studentId);
-      setActiveTab('results');
-    } catch (error) {
-      alert(`Error loading results: ${error.message}`);
-      setResults(null);
-    } finally {
-      setFetchingResults(false);
+  setFetchingResults(true);
+  setResults(null);
+  
+  try {
+    // 1. Validate inputs
+    if (!studentId || !term || !session) {
+      const missing = [];
+      if (!studentId) missing.push('student ID');
+      if (!term) missing.push('term');
+      if (!session) missing.push('session');
+      throw new Error(`Missing required fields: ${missing.join(', ')}`);
     }
-  };
 
+    // 2. Prepare request
+    const encodedStudentId = encodeURIComponent(studentId);
+    const encodedSession = encodeURIComponent(session);
+    const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
+
+    // 3. Make API call
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // 4. Handle response
+    const responseText = await response.text();
+    
+    // Check for HTML error pages
+    if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
+      throw new Error('Server returned an error page');
+    }
+
+    // Parse JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse response:', {
+        status: response.status,
+        response: responseText.substring(0, 200)
+      });
+      throw new Error('Invalid server response format');
+    }
+
+    // Check for API errors
+    if (!response.ok) {
+      throw new Error(
+        data.message || 
+        data.error?.message || 
+        `Request failed with status ${response.status}`
+      );
+    }
+
+    // 5. Transform data (optional - only if you need to modify the structure)
+    const enhancedData = {
+      ...data,
+      // Add any frontend-specific transformations here
+      attendanceRate: data.attendance?.days_opened 
+        ? (data.attendance.days_present / data.attendance.days_opened * 100).toFixed(2)
+        : null
+    };
+
+    // 6. Update state
+    setResults(enhancedData);
+    setSelectedStudent(studentId);
+    setActiveTab('results');
+
+    return enhancedData;
+
+  } catch (error) {
+    console.error('Error fetching student results:', {
+      studentId,
+      term,
+      session,
+      error: error.message
+    });
+
+    // Enhanced error messages
+    let userMessage = error.message;
+    if (error.message.includes('Unauthorized')) {
+      userMessage = 'You are not authorized to view these results';
+    } else if (error.message.includes('not found')) {
+      userMessage = 'Student record not found';
+    }
+
+    alert(`Error: ${userMessage}`);
+    setResults(null);
+    throw error; 
+    
+  } finally {
+    setFetchingResults(false);
+  }
+};
+  
   const handleSubmitResults = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {

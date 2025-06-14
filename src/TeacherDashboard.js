@@ -128,7 +128,7 @@ function TeacherDashboard({ teacherUser, token }) {
     setFetchingClassResults(true);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
+        `${API_BASE_URL}/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

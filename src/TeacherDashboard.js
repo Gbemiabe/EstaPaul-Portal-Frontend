@@ -286,7 +286,6 @@ const fetchStudentResults = async (studentId, term, session) => {
     if (!session || !session.trim()) {
       throw new Error('Missing academic session');
     }
-
     // 2. Build and log the URL for debugging
     const encodedStudentId = encodeURIComponent(studentId);
     const encodedTerm = encodeURIComponent(term);
@@ -308,7 +307,6 @@ const fetchStudentResults = async (studentId, term, session) => {
         'Content-Type': 'application/json'
       }
     });
-
     console.log('📡 Response Info:', {
       status: response.status,
       statusText: response.statusText,
@@ -324,11 +322,22 @@ const fetchStudentResults = async (studentId, term, session) => {
       console.error('🚨 Server returned HTML error page:', responseText);
       throw new Error('Server returned an error page - check server logs');
     }
-
     let data;
     try {
       data = JSON.parse(responseText);
       console.log('✅ Parsed Response Data:', data);
+      
+      // 🆕 NEW: Log position information for debugging
+      if (data?.overallPerformance?.position) {
+        console.log('🏆 Position Info:', {
+          position: data.overallPerformance.position,
+          studentName: data.student?.full_name,
+          class: data.student?.class,
+          term: data.term,
+          session: data.session
+        });
+      }
+      
     } catch (parseError) {
       console.error('❌ Failed to parse response:', {
         status: response.status,
@@ -356,6 +365,14 @@ const fetchStudentResults = async (studentId, term, session) => {
     
     // 5. Update state (maintaining your existing structure)
     console.log('✅ Setting results successfully');
+    
+    // 🆕 NEW: Enhanced success message with position info
+    if (data?.overallPerformance?.position && data.overallPerformance.position !== 'N/A') {
+      const [pos, total] = data.overallPerformance.position.split('/');
+      const positionSuffix = getPositionSuffix(parseInt(pos));
+      console.log(`🎯 ${data.student?.full_name} is ranked ${positionSuffix} out of ${total} students in ${data.student?.class}`);
+    }
+    
     setResults(data);
     setSelectedStudent(studentId);
     setActiveTab('results');
@@ -388,7 +405,15 @@ const fetchStudentResults = async (studentId, term, session) => {
     setFetchingResults(false);
   }
 };
-  
+
+// 🆕 NEW: Helper function to get position suffix (add this outside your component or in utils)
+const getPositionSuffix = (position) => {
+  const num = parseInt(position);
+  if (num % 10 === 1 && num % 100 !== 11) return `${num}st`;
+  if (num % 10 === 2 && num % 100 !== 12) return `${num}nd`;
+  if (num % 10 === 3 && num % 100 !== 13) return `${num}rd`;
+  return `${num}th`;
+};  
   const handleSubmitResults = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {

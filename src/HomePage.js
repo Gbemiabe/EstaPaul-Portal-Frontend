@@ -13,15 +13,15 @@ function HomePage() {
       const mockSchoolInfo = {
         name: "ESTAPAUL Group of Schools",
         logo_url: "https://bqzqgpvklburfthmhlpq.supabase.co/storage/v1/object/public/school-media//logo.png",
-        motto: "Knowledge, Character, Excellence (One with God)",
+        motto: "Readers are Leaders",
         established: "2010",
-        propietor: "Mr. OlaBode",
-        principal_name: "Mr. Olusegun",
+        propietor: "Mr. Olusegun",
+        propietor_name: "Mr. Adetunkasi Adewale",
         address: "Igedora, Igede Ekiti",
         description: "ESTAPAUL GROUP OF SCHOOLS is a leading educational institution providing quality education from Creche to Senior Secondary levels. We nurture young minds to excel academically and morally, fostering a holistic learning environment.",
         admissions: "Admissions are open for new academic sessions. Visit our school or website for application details.",
         academics: "Our curriculum is robust, designed to meet national standards, and delivered by experienced educators.",
-        phone: "+234 8104727116",
+        phone: "+234 8131819188",
         email: "info@estapaulschools.edu"
       };
       

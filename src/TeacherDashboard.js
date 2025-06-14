@@ -18,7 +18,7 @@ import './TeacherDashboard.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001/api";
 
-function TeacherDashboard({ teacherUser, token }) {}
+function TeacherDashboard({ teacherUser, token }) {
   const navigate = useNavigate();
   const [teacherInfo, setTeacherInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,6 @@ function TeacherDashboard({ teacherUser, token }) {}
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classOverallResults, setClassOverallResults] = useState(null);
-  const [fetchingClassResults, setFetchingClassResults] = useState(false);
   const [pt1, setPt1] = useState('');
   const [pt2, setPt2] = useState('');
   const [pt3, setPt3] = useState('');
@@ -48,6 +47,7 @@ function TeacherDashboard({ teacherUser, token }) {}
   const [daysOpened, setDaysOpened] = useState('');
   const [daysPresent, setDaysPresent] = useState('');
   const [attendanceSuccess, setAttendanceSuccess] = useState(null);
+  const [fetchingClassResults, setFetchingClassResults] = useState(false);
   const [submittingResults, setSubmittingResults] = useState(false);
   const [addingSubject, setAddingSubject] = useState(false);
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
@@ -119,14 +119,13 @@ function TeacherDashboard({ teacherUser, token }) {}
     }
   };
 
-  const fetchClassOverallResults = async () => {
-    if (!teacherInfo?.class || !selectedTerm || !session) {
-      alert('Please select both term and session to view class results');
-      return;
-    }
-    
-    setFetchingClassResults(true);
-  const fetchClassOverallResults = async () => {
+const fetchClassOverallResults = async () => {
+  if (!teacherInfo?.class || !selectedTerm || !session) {
+    alert('Please select both term and session to view class results');
+    return;
+  }
+  
+  setFetchingClassResults(true);
   try {
     const response = await fetch(
       `${API_BASE_URL}/api/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
@@ -138,139 +137,139 @@ function TeacherDashboard({ teacherUser, token }) {}
       }
     );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setClassOverallResults(data);
-    } catch (error) {
-      console.error('Error fetching class overall results:', error);
-      alert(`Failed to fetch class results: ${error.message}`);
-    } finally {
-      setFetchingClassResults(false);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
 
-  useEffect(() => {
-    if (activeTab === 'class-results' && teacherInfo?.class) {
-      fetchClassOverallResults();
-    }
-  }, [activeTab, selectedTerm, session, teacherInfo?.class]);
+    const data = await response.json();
+    setClassOverallResults(data);
+  } catch (error) {
+    console.error('Error fetching class overall results:', error);
+    alert(`Failed to fetch class results: ${error.message}`);
+  } finally {
+    setFetchingClassResults(false);
+  }
+};
 
-  const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
-    if (!studentId || !subjectId || !term || !session) {
-        return;
-    }
-    setPrefilling(true);
-    try {
-        const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-            if (response.status === 404) {
-                return null;
-            }
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-        }
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error("Failed to fetch academic result for prefill:", error);
+useEffect(() => {
+  if (activeTab === 'class-results' && teacherInfo?.class) {
+    fetchClassOverallResults();
+  }
+}, [activeTab, selectedTerm, session, teacherInfo?.class]);
+
+const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
+  if (!studentId || !subjectId || !term || !session) {
+    return;
+  }
+  setPrefilling(true);
+  try {
+    const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
         return null;
-    } finally {
-        setPrefilling(false);
+      }
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-  };
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch academic result for prefill:", error);
+    return null;
+  } finally {
+    setPrefilling(false);
+  }
+};
 
-  const fetchPsychomotorForPrefill = async (studentId, term, session) => {
-    if (!studentId || !term || !session) {
-        return;
-    }
-    setPrefilling(true);
-    try {
-        const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-            if (response.status === 404) {
-                return null;
-            }
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-        }
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error("Failed to fetch psychomotor result for prefill:", error);
+const fetchPsychomotorForPrefill = async (studentId, term, session) => {
+  if (!studentId || !term || !session) {
+    return;
+  }
+  setPrefilling(true);
+  try {
+    const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
         return null;
-    } finally {
-        setPrefilling(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'upload') {
-      setPt1(''); setPt2(''); setPt3(''); setExam('');
-      setAttendance(''); setPunctuality(''); setNeatness('');
-      setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
-      setDaysOpened(''); setDaysPresent('');
-
-      if (selectedStudent && selectedSubject && selectedTerm && session) {
-        fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
-          .then(data => {
-            if (data && data.result) {
-              setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
-              setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
-              setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
-              setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
-            }
-          });
       }
-
-      if (selectedStudent && selectedTerm && session) {
-        fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
-          .then(data => {
-            if (data) {
-              if (data.psychomotor) {
-                setAttendance(data.psychomotor.attendance || '');
-                setPunctuality(data.psychomotor.punctuality || '');
-                setNeatness(data.psychomotor.neatness || '');
-                setHonesty(data.psychomotor.honesty || '');
-                setResponsibility(data.psychomotor.responsibility || '');
-                setCreativity(data.psychomotor.creativity || '');
-                setSports(data.psychomotor.sports || '');
-              }
-              if (data.days_opened !== undefined && data.days_present !== undefined) {
-                setDaysOpened(data.days_opened.toString());
-                setDaysPresent(data.days_present.toString());
-              }
-            }
-          });
-      }
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-  }, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch psychomotor result for prefill:", error);
+    return null;
+  } finally {
+    setPrefilling(false);
+  }
+};
 
-  useEffect(() => {
-    if (activeTab === 'attendance') {
-      setDaysOpened('');
-      setDaysPresent('');
-      setAttendanceSuccess(null);
+useEffect(() => {
+  if (activeTab === 'upload') {
+    setPt1(''); setPt2(''); setPt3(''); setExam('');
+    setAttendance(''); setPunctuality(''); setNeatness('');
+    setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
+    setDaysOpened(''); setDaysPresent('');
 
-      if (selectedStudent && selectedTerm && session) {
-        fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
-          .then(data => {
-            if (data && data.days_opened !== undefined && data.days_present !== undefined) {
+    if (selectedStudent && selectedSubject && selectedTerm && session) {
+      fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
+        .then(data => {
+          if (data && data.result) {
+            setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
+            setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
+            setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
+            setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
+          }
+        });
+    }
+
+    if (selectedStudent && selectedTerm && session) {
+      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+        .then(data => {
+          if (data) {
+            if (data.psychomotor) {
+              setAttendance(data.psychomotor.attendance || '');
+              setPunctuality(data.psychomotor.punctuality || '');
+              setNeatness(data.psychomotor.neatness || '');
+              setHonesty(data.psychomotor.honesty || '');
+              setResponsibility(data.psychomotor.responsibility || '');
+              setCreativity(data.psychomotor.creativity || '');
+              setSports(data.psychomotor.sports || '');
+            }
+            if (data.days_opened !== undefined && data.days_present !== undefined) {
               setDaysOpened(data.days_opened.toString());
               setDaysPresent(data.days_present.toString());
             }
-          });
-      }
+          }
+        });
     }
-  }, [activeTab, selectedStudent, selectedTerm, session, token]);
+  }
+}, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
+
+useEffect(() => {
+  if (activeTab === 'attendance') {
+    setDaysOpened('');
+    setDaysPresent('');
+    setAttendanceSuccess(null);
+
+    if (selectedStudent && selectedTerm && session) {
+      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+        .then(data => {
+          if (data && data.days_opened !== undefined && data.days_present !== undefined) {
+            setDaysOpened(data.days_opened.toString());
+            setDaysPresent(data.days_present.toString());
+          }
+        });
+    }
+  }
+}, [activeTab, selectedStudent, selectedTerm, session, token]);
 
   const fetchStudentResults = async (studentId, term, session) => {
     setFetchingResults(true);
@@ -286,7 +285,7 @@ function TeacherDashboard({ teacherUser, token }) {}
       }
       const encodedStudentId = encodeURIComponent(studentId);
       const encodedSession = encodeURIComponent(session);
-      const url = `${API_BASE_URL}/api/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
+      const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -133,6 +133,7 @@ function TeacherDashboard({ teacherUser, token }) {
       {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       }
     );

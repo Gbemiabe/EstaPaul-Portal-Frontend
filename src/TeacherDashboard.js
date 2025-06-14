@@ -271,7 +271,7 @@ useEffect(() => {
   }
 }, [activeTab, selectedStudent, selectedTerm, session, token]);
 
-  const fetchStudentResults = async (studentId, term, session) => {
+const fetchStudentResults = async (studentId, term, session) => {
   setFetchingResults(true);
   setResults(null);
   
@@ -287,73 +287,102 @@ useEffect(() => {
       throw new Error('Missing academic session');
     }
 
-    // 2. Make the API request
-    const response = await fetch(
-      `${API_BASE_URL}/teacher/student-results/${
-        encodeURIComponent(studentId)}/${
-        term}/${
-        encodeURIComponent(session)}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+    // 2. Build and log the URL for debugging
+    const encodedStudentId = encodeURIComponent(studentId);
+    const encodedTerm = encodeURIComponent(term);
+    const encodedSession = encodeURIComponent(session);
+    
+    const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${encodedTerm}/${encodedSession}`;
+    
+    console.log('🔍 Debug Info:', {
+      original: { studentId, term, session },
+      encoded: { encodedStudentId, encodedTerm, encodedSession },
+      finalUrl: url,
+      hasToken: !!token
+    });
+    
+    // 3. Make the API request
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
-    // 3. Handle response
+    console.log('📡 Response Info:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+    
+    // 4. Handle response
     const responseText = await response.text();
+    console.log('📄 Response Text Preview:', responseText.substring(0, 500));
     
     // Check for HTML error pages
     if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
-      throw new Error('Server returned an error page');
+      console.error('🚨 Server returned HTML error page:', responseText);
+      throw new Error('Server returned an error page - check server logs');
     }
 
     let data;
     try {
       data = JSON.parse(responseText);
+      console.log('✅ Parsed Response Data:', data);
     } catch (parseError) {
-      console.error('Failed to parse response:', {
+      console.error('❌ Failed to parse response:', {
         status: response.status,
+        parseError: parseError.message,
         response: responseText.substring(0, 200)
       });
       throw new Error('Invalid server response format');
     }
-
+    
     // Handle specific error cases
     if (!response.ok) {
+      console.error('❌ Request failed:', {
+        status: response.status,
+        data: data
+      });
+      
       if (response.status === 404) {
         throw new Error(`Student "${studentId}" not found in records`);
       }
+      if (response.status === 500) {
+        throw new Error(`Server error: ${data.message || data.error || 'Internal server error'}`);
+      }
       throw new Error(data.message || `Request failed with status ${response.status}`);
     }
-
-    // 4. Update state (maintaining your existing structure)
+    
+    // 5. Update state (maintaining your existing structure)
+    console.log('✅ Setting results successfully');
     setResults(data);
     setSelectedStudent(studentId);
     setActiveTab('results');
-
     return data;
-
+    
   } catch (error) {
-    console.error('Error in fetchStudentResults:', {
+    console.error('💥 Error in fetchStudentResults:', {
       studentId,
       term,
       session,
-      error: error.message
+      error: error.message,
+      stack: error.stack
     });
-
+    
     // Enhanced error messages
     let userMessage = error.message;
     if (error.message.includes('not found')) {
       userMessage = `Student "${studentId}" not found in system records`;
     } else if (error.message.includes('Unauthorized') || error.message.includes('your own class')) {
       userMessage = 'You can only view results for students in your assigned class';
+    } else if (error.message.includes('Server error')) {
+      userMessage = 'Server is experiencing issues. Please try again or contact support.';
     }
-
+    
     alert(`Error: ${userMessage}`);
     setResults(null);
-    throw error; // Re-throw if you need to handle this in calling code
+    throw error;
     
   } finally {
     setFetchingResults(false);

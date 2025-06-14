@@ -276,29 +276,32 @@ useEffect(() => {
   setResults(null);
   
   try {
-    // 1. Validate inputs
-    if (!studentId || !term || !session) {
-      const missing = [];
-      if (!studentId) missing.push('student ID');
-      if (!term) missing.push('term');
-      if (!session) missing.push('session');
-      throw new Error(`Missing required fields: ${missing.join(', ')}`);
+    // 1. Input validation (more robust than before)
+    if (!studentId || !studentId.trim()) {
+      throw new Error('Missing student ID');
+    }
+    if (!['1st', '2nd', '3rd'].includes(term)) {
+      throw new Error('Invalid term selected');
+    }
+    if (!session || !session.trim()) {
+      throw new Error('Missing academic session');
     }
 
-    // 2. Prepare request
-    const encodedStudentId = encodeURIComponent(studentId);
-    const encodedSession = encodeURIComponent(session);
-    const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
-
-    // 3. Make API call
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    // 2. Make the API request
+    const response = await fetch(
+      `${API_BASE_URL}/teacher/student-results/${
+        encodeURIComponent(studentId)}/${
+        term}/${
+        encodeURIComponent(session)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       }
-    });
+    );
 
-    // 4. Handle response
+    // 3. Handle response
     const responseText = await response.text();
     
     // Check for HTML error pages
@@ -306,7 +309,6 @@ useEffect(() => {
       throw new Error('Server returned an error page');
     }
 
-    // Parse JSON
     let data;
     try {
       data = JSON.parse(responseText);
@@ -318,33 +320,23 @@ useEffect(() => {
       throw new Error('Invalid server response format');
     }
 
-    // Check for API errors
+    // Handle specific error cases
     if (!response.ok) {
-      throw new Error(
-        data.message || 
-        data.error?.message || 
-        `Request failed with status ${response.status}`
-      );
+      if (response.status === 404) {
+        throw new Error(`Student "${studentId}" not found in records`);
+      }
+      throw new Error(data.message || `Request failed with status ${response.status}`);
     }
 
-    // 5. Transform data (optional - only if you need to modify the structure)
-    const enhancedData = {
-      ...data,
-      // Add any frontend-specific transformations here
-      attendanceRate: data.attendance?.days_opened 
-        ? (data.attendance.days_present / data.attendance.days_opened * 100).toFixed(2)
-        : null
-    };
-
-    // 6. Update state
-    setResults(enhancedData);
+    // 4. Update state (maintaining your existing structure)
+    setResults(data);
     setSelectedStudent(studentId);
     setActiveTab('results');
 
-    return enhancedData;
+    return data;
 
   } catch (error) {
-    console.error('Error fetching student results:', {
+    console.error('Error in fetchStudentResults:', {
       studentId,
       term,
       session,
@@ -353,15 +345,15 @@ useEffect(() => {
 
     // Enhanced error messages
     let userMessage = error.message;
-    if (error.message.includes('Unauthorized')) {
-      userMessage = 'You are not authorized to view these results';
-    } else if (error.message.includes('not found')) {
-      userMessage = 'Student record not found';
+    if (error.message.includes('not found')) {
+      userMessage = `Student "${studentId}" not found in system records`;
+    } else if (error.message.includes('Unauthorized') || error.message.includes('your own class')) {
+      userMessage = 'You can only view results for students in your assigned class';
     }
 
     alert(`Error: ${userMessage}`);
     setResults(null);
-    throw error; 
+    throw error; // Re-throw if you need to handle this in calling code
     
   } finally {
     setFetchingResults(false);

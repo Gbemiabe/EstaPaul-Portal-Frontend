@@ -1352,41 +1352,45 @@ const getPositionSuffix = (position) => {
               ) : classOverallResults ? (
                 <div className="class-results-container">
                   <div className="results-summary-card">
-                    <h3>Class: {classOverallResults.class}</h3>
-                    <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
-                    <p>Total Students: {classOverallResults.results.length}</p>
-                  </div>
-
+  <h3>Class: {classOverallResults.class}</h3>
+  <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
+  <p>Total Students: {classOverallResults.results.length}</p>
+  <p>
+    Class Average: <strong>{classOverallResults.classAverage ? `${classOverallResults.classAverage}%` : 'N/A'}</strong>
+  </p>
+</div>
                   <div className="table-responsive">
                     <table className="data-table class-results-table">
-                      <thead>
-                        <tr>
-                          <th>Position</th>
-                          <th>Student Name</th>
-                          <th>Total Score</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {classOverallResults.results.map((student, index) => (
-                          <tr key={student.id}>
-                            <td>{student.position}</td>
-                            <td>{student.full_name}</td>
-                            <td>{student.term_total_score}</td>
-                            <td>
-                              <button
-                                onClick={() => {
-                                  setSelectedStudent(student.id);
-                                  fetchStudentResults(student.id, selectedTerm, session);
-                                }}
-                                className="btn btn-secondary btn-sm"
-                              >
-                                View Details
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+     <thead>
+  <tr>
+    <th>Position</th>
+    <th>Student Name</th>
+    <th>Total Score</th>
+    <th>Percentage</th>
+    <th>Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {classOverallResults.results.map((student, index) => (
+    <tr key={student.id}>
+      <td>{student.position}</td>
+      <td>{student.full_name}</td>
+      <td>{student.term_total_score}</td>
+      <td>{student.percentage ? `${student.percentage}%` : 'N/A'}</td>
+      <td>
+        <button
+          onClick={() => {
+            setSelectedStudent(student.id);
+            fetchStudentResults(student.id, selectedTerm, session);
+          }}
+          className="btn btn-secondary btn-sm"
+        >
+          View Details
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
                     </table>
                   </div>
                 </div>

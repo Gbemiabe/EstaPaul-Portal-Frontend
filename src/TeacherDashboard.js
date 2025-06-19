@@ -16,7 +16,8 @@ import {
   FaEdit,
   FaTrash,
   FaCheckCircle,
-  FaTimesCircle
+  FaTimesCircle,
+  FaHeartbeat // New icon for Psychomotor
 } from 'react-icons/fa';
 import './TeacherDashboard.css';
 
@@ -28,27 +29,29 @@ function TeacherDashboard({ teacherUser, token }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('students');
   const [classStudents, setClassStudents] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('');
+  const [subjects, setSubjects] = useState([]); // All subjects for the teacher's class
+  const [selectedStudent, setSelectedStudent] = useState(''); // Used for single-student view and pre-populating forms
   const [results, setResults] = useState(null); // For individual student results (academic, psychomotor, attendance)
   const [selectedTerm, setSelectedTerm] = useState('1st');
-  const [session, setSession] = useState('');
+  const [session, setSession] = useState(''); // Initialize as empty string, will be set from localStorage or fetched sessions
   const [availableSessions, setAvailableSessions] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classOverallResults, setClassOverallResults] = useState(null);
 
-  // Academic Score States
-  const [pt1, setPt1] = useState('');
-  const [pt2, setPt2] = useState('');
-  const [pt3, setPt3] = useState('');
-  const [exam, setExam] = useState('');
-  const [submittingAcademicResults, setSubmittingAcademicResults] = useState(false);
-  const [academicResultsPrefill, setAcademicResultsPrefill] = useState(null);
+  // Academic Scores for MULTI-STUDENT Bulk Upload
+  const [academicDataGrid, setAcademicDataGrid] = useState([]); // [{ student_id, full_name, subject_scores: { subject_id: { pt1, pt2, pt3, exam } } }]
+  const [submittingAcademicResultsBulk, setSubmittingAcademicResultsBulk] = useState(false);
 
-  // Psychomotor Skill States
-  const [psychomotorResults, setPsychomotorResults] = useState(null);
+  // Individual Student Academic Score States (for single student view via "View Details" button)
+  const [singleStudentAcademicPt1, setSingleStudentAcademicPt1] = useState('');
+  const [singleStudentAcademicPt2, setSingleStudentAcademicPt2] = useState('');
+  const [singleStudentAcademicPt3, setSingleStudentAcademicPt3] = useState('');
+  const [singleStudentAcademicExam, setSingleStudentAcademicExam] = useState('');
+  const [singleSelectedSubject, setSingleSelectedSubject] = useState(''); // For single student academic upload
+
+  // Psychomotor Skill States (for individual student upload in new separate tab)
+  const [psychomotorResults, setPsychomotorResults] = useState(null); // For prefill
   const [attendanceSkill, setAttendanceSkill] = useState('');
   const [punctuality, setPunctuality] = useState('');
   const [neatness, setNeatness] = useState('');
@@ -59,19 +62,17 @@ function TeacherDashboard({ teacherUser, token }) {
   const [submittingPsychomotorSkills, setSubmittingPsychomotorSkills] = useState(false);
   const [psychomotorPrefill, setPsychomotorPrefill] = useState(null);
 
-  // Attendance Specific States
+  // Attendance Specific States (for individual student upload in Academic & Attendance tab)
   const [daysOpened, setDaysOpened] = useState('');
   const [daysPresent, setDaysPresent] = useState('');
-  const [attendanceSuccess, setAttendanceSuccess] = useState(null); // Not explicitly used as boolean, could be message
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
   const [attendancePrefill, setAttendancePrefill] = useState(null);
-
 
   // General Loading/Submitting States
   const [fetchingClassResults, setFetchingClassResults] = useState(false);
   const [addingSubject, setAddingSubject] = useState(false);
-  const [fetchingResults, setFetchingResults] = useState(false);
-  const [prefilling, setPrefilling] = useState(false); // General prefill loading
+  const [fetchingResults, setFetchingResults] = useState(false); // For single student result view
+  const [prefilling, setPrefilling] = useState(false); // For academic prefill (old) or psychomotor/attendance prefill
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('user');
@@ -138,13 +139,84 @@ function TeacherDashboard({ teacherUser, token }) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setAvailableSessions(data.sessions || []); // Backend returns { sessions: [...] }
       return data.sessions || [];
     } catch (error) {
       console.error('Error fetching sessions:', error);
       return [];
     }
   }, [token, handleLogout]);
+
+  // NEW: Fetch all academic results for the class to prefill the bulk upload grid
+  const prefillAllAcademicResults = useCallback(async () => {
+    if (!teacherInfo?.class || !selectedTerm || !session) {
+      // Don't alert here, as this function will be called on mount/selector change
+      return;
+    }
+    const selectedSessionObject = availableSessions.find(s => s.name === session);
+    if (!selectedSessionObject) {
+      console.warn('Selected session not found for prefill.');
+      return;
+    }
+    const sessionId = selectedSessionObject.id;
+
+    setSubmittingAcademicResultsBulk(true); // Use this state for prefilling too, to indicate data loading
+    try {
+      // Assuming a backend endpoint like /teacher/academic-results/class-prefill
+      // that returns all academic results for a class, term, and session
+      const response = await fetch(
+        `${API_BASE_URL}/teacher/academic-results/class-prefill?class_id=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${sessionId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        }
+      );
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          handleLogout();
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json(); // Expected format: [{ student_id, full_name, subjects: [{ subject_id, pt1, pt2, ... }] }]
+
+      // Initialize academicDataGrid with all students and prefill existing scores
+      const newAcademicDataGrid = classStudents.map(student => {
+        const studentData = data.find(item => item.student_id === student.id);
+        const subjectScores = {};
+        subjects.forEach(subject => {
+          const score = studentData?.subjects.find(s => s.subject_id === subject.id);
+          subjectScores[subject.id] = {
+            pt1: score?.pt1 || '',
+            pt2: score?.pt2 || '',
+            pt3: score?.pt3 || '',
+            exam: score?.exam || '',
+          };
+        });
+        return {
+          student_id: student.id,
+          full_name: student.full_name,
+          subject_scores: subjectScores,
+        };
+      });
+      setAcademicDataGrid(newAcademicDataGrid);
+
+    } catch (error) {
+      console.error('Error prefilling academic results for class:', error);
+      alert(`Failed to prefill academic results: ${error.message}`);
+      // Fallback: Initialize with empty grid if prefill fails
+      const emptyAcademicDataGrid = classStudents.map(student => {
+        const subjectScores = {};
+        subjects.forEach(subject => {
+          subjectScores[subject.id] = { pt1: '', pt2: '', pt3: '', exam: '' };
+        });
+        return { student_id: student.id, full_name: student.full_name, subject_scores: subjectScores };
+      });
+      setAcademicDataGrid(emptyAcademicDataGrid);
+    } finally {
+      setSubmittingAcademicResultsBulk(false); // End loading for prefill
+    }
+  }, [teacherInfo?.class, selectedTerm, session, availableSessions, classStudents, subjects, token, handleLogout]);
+
 
   const fetchClassOverallResults = useCallback(async () => {
     if (!teacherInfo?.class || !selectedTerm || !session) {
@@ -153,7 +225,6 @@ function TeacherDashboard({ teacherUser, token }) {
     }
     setFetchingClassResults(true);
     try {
-      // Backend expects session_id, frontend stores session name (string)
       const selectedSessionObject = availableSessions.find(s => s.name === session);
       if (!selectedSessionObject) {
         alert('Selected session not found. Please choose a valid session.');
@@ -227,7 +298,7 @@ function TeacherDashboard({ teacherUser, token }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ subject_name: newSubject }),
+        body: JSON.stringify({ subject_name: newSubject, class_name: teacherInfo.class }), // Pass class_name
       });
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -277,41 +348,30 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [teacherInfo, token, fetchSubjects, handleLogout]);
 
 
-  // Prefill Academic Results
-  const prefillAcademicResults = useCallback(async (studentId, subjectId, term, sessionId) => {
-    setPrefilling(true);
-    setAcademicResultsPrefill(null);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/teacher/academic-results-prefill?student_id=${studentId}&subject_id=${subjectId}&term=${term}&session_id=${sessionId}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          handleLogout();
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setAcademicResultsPrefill(data.result || null);
-      setPt1(data.result?.pt1 || '');
-      setPt2(data.result?.pt2 || '');
-      setPt3(data.result?.pt3 || '');
-      setExam(data.result?.exam || '');
-    } catch (error) {
-      console.error('Error prefilling academic results:', error);
-      alert(`Failed to prefill academic results: ${error.message}`);
-      setAcademicResultsPrefill(null);
-      setPt1(''); setPt2(''); setPt3(''); setExam('');
-    } finally {
-      setPrefilling(false);
-    }
-  }, [token, handleLogout]);
+  // NEW: Handle input changes in the academic data grid
+  const handleAcademicScoreChange = useCallback((studentId, subjectId, scoreType, value) => {
+    setAcademicDataGrid(prevGrid =>
+      prevGrid.map(studentRow =>
+        studentRow.student_id === studentId
+          ? {
+              ...studentRow,
+              subject_scores: {
+                ...studentRow.subject_scores,
+                [subjectId]: {
+                  ...studentRow.subject_scores[subjectId],
+                  [scoreType]: value === '' ? '' : Number(value), // Keep empty string for empty input, convert to number otherwise
+                },
+              },
+            }
+          : studentRow
+      )
+    );
+  }, []);
 
-  // Submit Academic Results
-  const submitAcademicResults = useCallback(async () => {
-    if (!selectedStudent || !selectedSubject || !selectedTerm || !session) {
-      alert('Please select student, subject, term, and session.');
+  // NEW: Submit all academic results from the grid
+  const submitAllAcademicResults = useCallback(async () => {
+    if (!selectedTerm || !session) {
+      alert('Please select term and session.');
       return;
     }
 
@@ -322,18 +382,34 @@ function TeacherDashboard({ teacherUser, token }) {
     }
     const sessionId = selectedSessionObject.id;
 
-    const academicResultsData = [{
-      student_id: selectedStudent,
-      subject_id: selectedSubject,
-      term: selectedTerm,
-      session_id: sessionId,
-      pt1: pt1 === '' ? null : Number(pt1),
-      pt2: pt2 === '' ? null : Number(pt2),
-      pt3: pt3 === '' ? null : Number(pt3),
-      exam: exam === '' ? null : Number(exam),
-    }];
+    // Flatten the academicDataGrid into the format expected by the bulk API
+    // [{ student_id, subject_id, term, session_id, pt1, pt2, pt3, exam }]
+    const academicResultsToSubmit = [];
+    academicDataGrid.forEach(studentRow => {
+      subjects.forEach(subject => {
+        const scores = studentRow.subject_scores[subject.id];
+        // Only include if at least one score is provided
+        if (scores && (scores.pt1 !== '' || scores.pt2 !== '' || scores.pt3 !== '' || scores.exam !== '')) {
+          academicResultsToSubmit.push({
+            student_id: studentRow.student_id,
+            subject_id: subject.id,
+            term: selectedTerm,
+            session_id: sessionId,
+            pt1: scores.pt1 === '' ? null : scores.pt1,
+            pt2: scores.pt2 === '' ? null : scores.pt2,
+            pt3: scores.pt3 === '' ? null : scores.pt3,
+            exam: scores.exam === '' ? null : scores.exam,
+          });
+        }
+      });
+    });
 
-    setSubmittingAcademicResults(true);
+    if (academicResultsToSubmit.length === 0) {
+      alert('No academic results entered to submit.');
+      return;
+    }
+
+    setSubmittingAcademicResultsBulk(true);
     try {
       const response = await fetch(`${API_BASE_URL}/teacher/results/academic-bulk`, {
         method: 'POST',
@@ -341,7 +417,7 @@ function TeacherDashboard({ teacherUser, token }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ academicResults: academicResultsData }),
+        body: JSON.stringify({ academicResults: academicResultsToSubmit }),
       });
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -351,27 +427,35 @@ function TeacherDashboard({ teacherUser, token }) {
       }
       const data = await response.json();
       alert(data.message);
-      // Clear form or prefill again
-      setSelectedStudent('');
-      setSelectedSubject('');
-      setPt1(''); setPt2(''); setPt3(''); setExam('');
-      setAcademicResultsPrefill(null);
+      // Re-prefill the grid to show saved state
+      prefillAllAcademicResults();
     } catch (error) {
       console.error("Failed to submit academic results:", error);
       alert(`Failed to submit academic results: ${error.message}`);
     } finally {
-      setSubmittingAcademicResults(false);
+      setSubmittingAcademicResultsBulk(false);
     }
-  }, [selectedStudent, selectedSubject, selectedTerm, session, pt1, pt2, pt3, exam, token, availableSessions, handleLogout]);
+  }, [academicDataGrid, selectedTerm, session, availableSessions, subjects, token, prefillAllAcademicResults, handleLogout]);
 
 
-  // Prefill Psychomotor Skills
-  const prefillPsychomotorSkills = useCallback(async (studentId, term, sessionId) => {
+  // Prefill Psychomotor Skills (for new dedicated tab)
+  const prefillPsychomotorSkills = useCallback(async () => {
+    if (!selectedStudent || !selectedTerm || !session) {
+      alert('Please select student, term, and session to prefill psychomotor results.');
+      return;
+    }
+    const selectedSessionObject = availableSessions.find(s => s.name === session);
+    if (!selectedSessionObject) {
+      alert('Selected session not found. Please choose a valid session.');
+      return;
+    }
+    const sessionId = selectedSessionObject.id;
+
     setPrefilling(true);
     setPsychomotorPrefill(null);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/teacher/psychomotor-skills-prefill?student_id=${studentId}&term=${term}&session_id=${sessionId}`,
+        `${API_BASE_URL}/teacher/psychomotor-skills-prefill?student_id=${selectedStudent}&term=${selectedTerm}&session_id=${sessionId}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       if (!response.ok) {
@@ -382,7 +466,7 @@ function TeacherDashboard({ teacherUser, token }) {
       }
       const data = await response.json();
       setPsychomotorPrefill(data.result || null);
-      setAttendanceSkill(data.result?.attendance || ''); // Backend returns 'attendance', map to attendanceSkill
+      setAttendanceSkill(data.result?.attendance || '');
       setPunctuality(data.result?.punctuality || '');
       setNeatness(data.result?.neatness || '');
       setHonesty(data.result?.honesty || '');
@@ -398,9 +482,9 @@ function TeacherDashboard({ teacherUser, token }) {
     } finally {
       setPrefilling(false);
     }
-  }, [token, handleLogout]);
+  }, [selectedStudent, selectedTerm, session, token, availableSessions, handleLogout]);
 
-  // Submit Psychomotor Skills
+  // Submit Psychomotor Skills (for new dedicated tab)
   const submitPsychomotorSkills = useCallback(async () => {
     if (!selectedStudent || !selectedTerm || !session) {
       alert('Please select student, term, and session.');
@@ -418,7 +502,7 @@ function TeacherDashboard({ teacherUser, token }) {
       student_id: selectedStudent,
       term: selectedTerm,
       session_id: sessionId,
-      attendance: attendanceSkill, // Map attendanceSkill to backend's 'attendance'
+      attendance: attendanceSkill,
       punctuality,
       neatness,
       honesty,
@@ -446,26 +530,38 @@ function TeacherDashboard({ teacherUser, token }) {
       const data = await response.json();
       alert(data.message);
       // Clear form or prefill again
-      setSelectedStudent('');
       setAttendanceSkill(''); setPunctuality(''); setNeatness(''); setHonesty('');
       setResponsibility(''); setCreativity(''); setSports('');
       setPsychomotorPrefill(null);
+      // Optionally, prefill again to confirm save
+      prefillPsychomotorSkills();
     } catch (error) {
       console.error("Failed to submit psychomotor skills:", error);
       alert(`Failed to submit psychomotor skills: ${error.message}`);
     } finally {
       setSubmittingPsychomotorSkills(false);
     }
-  }, [selectedStudent, selectedTerm, session, attendanceSkill, punctuality, neatness, honesty, responsibility, creativity, sports, token, availableSessions, handleLogout]);
+  }, [selectedStudent, selectedTerm, session, attendanceSkill, punctuality, neatness, honesty, responsibility, creativity, sports, token, availableSessions, handleLogout, prefillPsychomotorSkills]);
 
 
-  // Prefill Attendance
-  const prefillAttendance = useCallback(async (studentId, term, sessionId) => {
+  // Prefill Attendance (for Academic & Attendance tab - single student)
+  const prefillAttendance = useCallback(async () => {
+    if (!selectedStudent || !selectedTerm || !session) {
+      alert('Please select student, term, and session to prefill attendance.');
+      return;
+    }
+    const selectedSessionObject = availableSessions.find(s => s.name === session);
+    if (!selectedSessionObject) {
+      alert('Selected session not found. Please choose a valid session.');
+      return;
+    }
+    const sessionId = selectedSessionObject.id;
+
     setPrefilling(true);
     setAttendancePrefill(null);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/teacher/attendance-prefill?student_id=${studentId}&term=${term}&session_id=${sessionId}`,
+        `${API_BASE_URL}/teacher/attendance-prefill?student_id=${selectedStudent}&term=${selectedTerm}&session_id=${sessionId}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       if (!response.ok) {
@@ -486,9 +582,9 @@ function TeacherDashboard({ teacherUser, token }) {
     } finally {
       setPrefilling(false);
     }
-  }, [token, handleLogout]);
+  }, [selectedStudent, selectedTerm, session, token, availableSessions, handleLogout]);
 
-  // Submit Attendance
+  // Submit Attendance (for Academic & Attendance tab - single student)
   const submitAttendance = useCallback(async () => {
     if (!selectedStudent || !selectedTerm || !session || daysOpened === '' || daysPresent === '') {
       alert('Please select student, term, session, and provide days opened/present.');
@@ -528,17 +624,18 @@ function TeacherDashboard({ teacherUser, token }) {
       }
       const data = await response.json();
       alert(data.message);
-      // Clear form
-      setSelectedStudent('');
+      // Clear form or prefill again
       setDaysOpened(''); setDaysPresent('');
       setAttendancePrefill(null);
+      // Optionally, prefill again to confirm save
+      prefillAttendance();
     } catch (error) {
       console.error("Failed to submit attendance:", error);
       alert(`Failed to submit attendance: ${error.message}`);
     } finally {
       setSubmittingAttendance(false);
     }
-  }, [selectedStudent, selectedTerm, session, daysOpened, daysPresent, token, availableSessions, handleLogout]);
+  }, [selectedStudent, selectedTerm, session, daysOpened, daysPresent, token, availableSessions, handleLogout, prefillAttendance]);
 
 
   // Main useEffect for initial data loading
@@ -547,44 +644,49 @@ function TeacherDashboard({ teacherUser, token }) {
       navigate('/login');
       return;
     }
-    setLoading(true); // Start loading for teacher info and initial fetches
+    setLoading(true);
     if (teacherUser) {
       setTeacherInfo(teacherUser);
-      if (teacherUser.class) {
-        fetchClassStudents(teacherUser.class);
-        fetchSubjects(teacherUser.class);
-      }
-      // Load sessions first, then handle initial session selection logic
-      fetchSessions().then(sessionsData => {
-        if (sessionsData.length > 0) {
-          const storedSession = localStorage.getItem('selectedTeacherSession');
-          const defaultSession = sessionsData[sessionsData.length - 1]?.name;
-          const initialSession = storedSession && sessionsData.some(s => s.name === storedSession)
-            ? storedSession
-            : defaultSession;
-          if (initialSession) {
-            setSession(initialSession);
+      const initialFetches = [
+        fetchClassStudents(teacherUser.class),
+        fetchSubjects(teacherUser.class),
+        fetchSessions().then(sessionsData => {
+          setAvailableSessions(sessionsData);
+          if (sessionsData.length > 0) {
+            const storedSession = localStorage.getItem('selectedTeacherSession');
+            const defaultSession = sessionsData[sessionsData.length - 1]?.name;
+            const initialSession = storedSession && sessionsData.some(s => s.name === storedSession)
+              ? storedSession
+              : defaultSession;
+            if (initialSession) {
+              setSession(initialSession);
+            }
           }
-        }
-        setLoading(false); // End loading after all initial fetches
-      }).catch(() => setLoading(false)); // Ensure loading stops even on session fetch error
+        })
+      ];
+
+      Promise.all(initialFetches)
+        .catch(error => console.error("Initial data fetch error:", error))
+        .finally(() => setLoading(false));
     } else {
-      // If teacherUser is null initially, assume not logged in or still loading parent component
-      // The navigate('/login') above handles not-logged-in, so this case is for 'still loading'
       setLoading(false);
     }
-  }, [teacherUser, token, navigate, fetchClassStudents, fetchSubjects, fetchSessions]); // Removed direct fetchSessions call, now chained.
+  }, [teacherUser, token, navigate, fetchClassStudents, fetchSubjects, fetchSessions]);
 
 
-  // Effect to re-fetch class students/subjects if teacher's class changes (unlikely, but for robustness)
+  // Effect to re-fetch class students/subjects/academic grid if class, term, or session changes
   useEffect(() => {
-    if (teacherInfo?.class && activeTab === 'students') { // Only refresh students if on students tab
+    if (teacherInfo?.class && activeTab === 'students') {
       fetchClassStudents(teacherInfo.class);
     }
-    if (teacherInfo?.class && activeTab === 'subjects') { // Only refresh subjects if on subjects tab
+    if (teacherInfo?.class && activeTab === 'subjects') {
       fetchSubjects(teacherInfo.class);
     }
-  }, [teacherInfo?.class, activeTab, fetchClassStudents, fetchSubjects]);
+    // New: Fetch all academic results when class, term, or session changes on the 'academic-attendance' tab
+    if (activeTab === 'academic-attendance' && teacherInfo?.class && selectedTerm && session && classStudents.length > 0 && subjects.length > 0) {
+      prefillAllAcademicResults();
+    }
+  }, [teacherInfo?.class, activeTab, selectedTerm, session, classStudents.length, subjects.length, fetchClassStudents, fetchSubjects, prefillAllAcademicResults]);
 
 
   // Effect for class overall results tab
@@ -616,10 +718,7 @@ function TeacherDashboard({ teacherUser, token }) {
     );
   }
 
-  // Ensure teacherInfo is available before rendering dashboard
   if (!teacherInfo) {
-    // This case should ideally be caught by the initial useEffect and navigate to login
-    // but as a fallback or if teacherUser prop somehow becomes null after initial load.
     return (
       <div className="dashboard-error">
         <p>Teacher information not available. Please log in again.</p>
@@ -647,8 +746,13 @@ function TeacherDashboard({ teacherUser, token }) {
             </button>
           </li>
           <li>
-            <button onClick={() => setActiveTab('upload-results')} className={activeTab === 'upload-results' ? 'active' : ''}>
-              <FaUpload /> Upload Results
+            <button onClick={() => setActiveTab('academic-attendance')} className={activeTab === 'academic-attendance' ? 'active' : ''}>
+              <FaUpload /> Academic & Attendance
+            </button>
+          </li>
+          <li>
+            <button onClick={() => setActiveTab('psychomotor')} className={activeTab === 'psychomotor' ? 'active' : ''}>
+              <FaHeartbeat /> Psychomotor Skills
             </button>
           </li>
           <li>
@@ -713,9 +817,16 @@ function TeacherDashboard({ teacherUser, token }) {
                             <button
                               onClick={() => {
                                 setSelectedStudent(student.id);
-                                // You might want to prefill a form or show a modal here
-                                // For now, just navigate or set tab to upload-results for that student
-                                setActiveTab('upload-results'); // Direct to upload for this student
+                                // Reset single student form states
+                                setSingleSelectedSubject('');
+                                setSingleStudentAcademicPt1('');
+                                setSingleStudentAcademicPt2('');
+                                setSingleStudentAcademicPt3('');
+                                setSingleStudentAcademicExam('');
+                                setDaysOpened('');
+                                setDaysPresent('');
+                                setResults(null); // Clear previous single student view results
+                                setActiveTab('academic-attendance'); // Direct to academic-attendance for this student
                               }}
                               className="btn btn-info btn-sm"
                             >
@@ -789,9 +900,283 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {activeTab === 'upload-results' && (
-            <section className="upload-results-section">
-              <h3>Upload Results</h3>
+          {activeTab === 'academic-attendance' && (
+            <section className="academic-attendance-section">
+              <h3>Academic & Attendance Records</h3>
+              <p className="text-muted">Enter academic scores for all students in the class. Attendance is managed per student below.</p>
+
+              <div className="form-row mb-4">
+                <div className="form-group col-md-6">
+                  <label>Term:</label>
+                  <select
+                    value={selectedTerm}
+                    onChange={(e) => setSelectedTerm(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="1st">1st Term</option>
+                    <option value="2nd">2nd Term</option>
+                    <option value="3rd">3rd Term</option>
+                  </select>
+                </div>
+                <div className="form-group col-md-6">
+                  <label>Session:</label>
+                  <select
+                    value={session}
+                    onChange={handleSessionChange}
+                    className="form-control"
+                  >
+                    <option value="">{availableSessions.length > 0 ? "-- Select Session --" : "Loading sessions..."}</option>
+                    {availableSessions.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedTerm && session && classStudents.length > 0 && subjects.length > 0 ? (
+                <>
+                  <h4 className="mt-4">Academic Results (Bulk Entry)</h4>
+                  {submittingAcademicResultsBulk ? (
+                    <div className="loading-indicator">
+                      <FaSpinner className="spinner" /> <p>Loading academic data...</p>
+                    </div>
+                  ) : (
+                    <div className="academic-bulk-table-container table-responsive">
+                      <table className="table table-bordered table-sm academic-bulk-table">
+                        <thead>
+                          <tr>
+                            <th rowSpan="2">Student Name</th>
+                            {subjects.map(subject => (
+                              <th colSpan="4" key={subject.id} className="text-center bg-light">{subject.name}</th>
+                            ))}
+                          </tr>
+                          <tr>
+                            {subjects.map(subject => (
+                              <React.Fragment key={`${subject.id}-scores`}>
+                                <th>PT1</th>
+                                <th>PT2</th>
+                                <th>PT3</th>
+                                <th>Exam</th>
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {academicDataGrid.map(studentRow => (
+                            <tr key={studentRow.student_id}>
+                              <td>{studentRow.full_name}</td>
+                              {subjects.map(subject => (
+                                <React.Fragment key={`${studentRow.student_id}-${subject.id}-inputs`}>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={studentRow.subject_scores[subject.id]?.pt1 || ''}
+                                      onChange={(e) => handleAcademicScoreChange(studentRow.student_id, subject.id, 'pt1', e.target.value)}
+                                      min="0" max="100" // Example range, adjust as needed
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={studentRow.subject_scores[subject.id]?.pt2 || ''}
+                                      onChange={(e) => handleAcademicScoreChange(studentRow.student_id, subject.id, 'pt2', e.target.value)}
+                                      min="0" max="100"
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={studentRow.subject_scores[subject.id]?.pt3 || ''}
+                                      onChange={(e) => handleAcademicScoreChange(studentRow.student_id, subject.id, 'pt3', e.target.value)}
+                                      min="0" max="100"
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={studentRow.subject_scores[subject.id]?.exam || ''}
+                                      onChange={(e) => handleAcademicScoreChange(studentRow.student_id, subject.id, 'exam', e.target.value)}
+                                      min="0" max="100"
+                                    />
+                                  </td>
+                                </React.Fragment>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={submitAllAcademicResults}
+                    className="btn btn-success mt-3"
+                    disabled={submittingAcademicResultsBulk}
+                  >
+                    {submittingAcademicResultsBulk ? <FaSpinner className="spinner-sm" /> : "Submit All Academic Results"}
+                  </button>
+
+                  <hr className="my-5" /> {/* Separator for attendance */}
+
+                  {/* Attendance Records - still managed per student here */}
+                  <h4 className="mt-4">Attendance Records (Per Student)</h4>
+                  <div className="form-group">
+                    <label>Select Student for Attendance:</label>
+                    <select
+                      value={selectedStudent}
+                      onChange={(e) => {
+                        setSelectedStudent(e.target.value);
+                        // Reset attendance fields when student changes
+                        setDaysOpened('');
+                        setDaysPresent('');
+                        setAttendancePrefill(null);
+                        setResults(null); // Clear overall results for previous student
+                      }}
+                      className="form-control"
+                    >
+                      <option value="">-- Select Student --</option>
+                      {classStudents.map(student => (
+                        <option key={student.id} value={student.id}>{student.full_name} ({student.student_id})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedStudent && selectedTerm && session && (
+                    <div className="attendance-forms-container">
+                      <button
+                        onClick={prefillAttendance}
+                        className="btn btn-secondary btn-sm mt-2"
+                        disabled={prefilling}
+                      >
+                        {prefilling ? <FaSpinner className="spinner-sm" /> : "Prefill Attendance"}
+                      </button>
+                      <div className="attendance-form row">
+                        <div className="form-group col-md-6">
+                          <label>Days Opened:</label>
+                          <input type="number" className="form-control" value={daysOpened} onChange={(e) => setDaysOpened(e.target.value)} />
+                        </div>
+                        <div className="form-group col-md-6">
+                          <label>Days Present:</label>
+                          <input type="number" className="form-control" value={daysPresent} onChange={(e) => setDaysPresent(e.target.value)} />
+                        </div>
+                        <div className="col-12 mt-3">
+                          <button onClick={submitAttendance} className="btn btn-success" disabled={submittingAttendance}>
+                            {submittingAttendance ? <FaSpinner className="spinner-sm" /> : "Submit Attendance"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <h4 className="mt-4">View All Results for Selected Student</h4>
+                      <button
+                        onClick={() => fetchStudentResults(selectedStudent, selectedTerm, availableSessions.find(s => s.name === session)?.id)}
+                        className="btn btn-primary mt-2"
+                        disabled={fetchingResults}
+                      >
+                        {fetchingResults ? <FaSpinner className="spinner-sm" /> : "Load All Results"}
+                      </button>
+
+                      {results && (
+                        <div className="mt-4 results-display-container">
+                          <h5 className="mb-3">Detailed Results for Student</h5>
+
+                          {/* Academic Results Section */}
+                          {results.academic_results && results.academic_results.length > 0 && (
+                            <div className="academic-results-section mb-4 card">
+                              <div className="card-header">
+                                <h6>Academic Performance - {selectedTerm} Term, {session} Session</h6>
+                              </div>
+                              <div className="card-body">
+                                <div className="table-responsive">
+                                  <table className="table table-bordered table-sm academic-table">
+                                    <thead>
+                                      <tr>
+                                        <th>Subject</th>
+                                        <th>PT1</th>
+                                        <th>PT2</th>
+                                        <th>PT3</th>
+                                        <th>Exam</th>
+                                        <th>Total</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {results.academic_results.map((res) => (
+                                        <tr key={res.id || res.subject_name}>
+                                          <td>{res.subject_name}</td>
+                                          <td>{res.pt1 !== null ? res.pt1 : '-'}</td>
+                                          <td>{res.pt2 !== null ? res.pt2 : '-'}</td>
+                                          <td>{res.pt3 !== null ? res.pt3 : '-'}</td>
+                                          <td>{res.exam !== null ? res.exam : '-'}</td>
+                                          <td>{res.total !== null ? res.total : '-'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Psychomotor Skills Section (This will now be less relevant here as it has its own tab, but displayed if part of fetched results) */}
+                          {results.psychomotor_results && (
+                            <div className="psychomotor-results-section mb-4 card">
+                              <div className="card-header">
+                                <h6>Psychomotor Skills - {selectedTerm} Term, {session} Session</h6>
+                              </div>
+                              <div className="card-body">
+                                <ul className="list-group list-group-flush">
+                                  <li className="list-group-item"><strong>Attendance:</strong> {results.psychomotor_results.attendance || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Punctuality:</strong> {results.psychomotor_results.punctuality || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Neatness:</strong> {results.psychomotor_results.neatness || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Honesty:</strong> {results.psychomotor_results.honesty || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Responsibility:</strong> {results.psychomotor_results.responsibility || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Creativity:</strong> {results.psychomotor_results.creativity || 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Sports:</strong> {results.psychomotor_results.sports || 'N/A'}</li>
+                                </ul>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Attendance Records Section */}
+                          {results.attendance_records && (
+                            <div className="attendance-records-section mb-4 card">
+                              <div className="card-header">
+                                <h6>Attendance Records - {selectedTerm} Term, {session} Session</h6>
+                              </div>
+                              <div className="card-body">
+                                <ul className="list-group list-group-flush">
+                                  <li className="list-group-item"><strong>Days Opened:</strong> {results.attendance_records.days_opened !== null ? results.attendance_records.days_opened : 'N/A'}</li>
+                                  <li className="list-group-item"><strong>Days Present:</strong> {results.attendance_records.days_present !== null ? results.attendance_records.days_present : 'N/A'}</li>
+                                </ul>
+                              </div>
+                            </div>
+                          )}
+
+                          {!results.academic_results?.length && !results.psychomotor_results && !results.attendance_records && (
+                            <div className="alert alert-info mt-4" role="alert">
+                              No results found for this student for the selected term and session.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="alert alert-info mt-4" role="alert">
+                  Please select a Term and Session, and ensure students and subjects are available to begin bulk entry.
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'psychomotor' && (
+            <section className="psychomotor-section">
+              <h3>Upload Psychomotor Skills (Per Student)</h3>
+              <p className="text-muted">Select a student, term, and session to enter or update their psychomotor skills.</p>
               <div className="form-group">
                 <label>Select Student:</label>
                 <select
@@ -807,7 +1192,7 @@ function TeacherDashboard({ teacherUser, token }) {
               </div>
 
               <div className="form-row">
-                <div className="form-group col-md-4">
+                <div className="form-group col-md-6">
                   <label>Term:</label>
                   <select
                     value={selectedTerm}
@@ -819,14 +1204,14 @@ function TeacherDashboard({ teacherUser, token }) {
                     <option value="3rd">3rd Term</option>
                   </select>
                 </div>
-                <div className="form-group col-md-4">
+                <div className="form-group col-md-6">
                   <label>Session:</label>
                   <select
                     value={session}
                     onChange={handleSessionChange}
                     className="form-control"
                   >
-                    <option value="">-- Select Session --</option>
+                    <option value="">{availableSessions.length > 0 ? "-- Select Session --" : "Loading sessions..."}</option>
                     {availableSessions.map(s => (
                       <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
@@ -834,59 +1219,11 @@ function TeacherDashboard({ teacherUser, token }) {
                 </div>
               </div>
 
-              {selectedStudent && selectedTerm && session && (
-                <div className="result-forms-container">
-                  <h4>Academic Results</h4>
-                  <div className="form-group">
-                    <label>Select Subject:</label>
-                    <select
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                      className="form-control"
-                    >
-                      <option value="">-- Select Subject --</option>
-                      {subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>{subject.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => prefillAcademicResults(selectedStudent, selectedSubject, selectedTerm, availableSessions.find(s => s.name === session)?.id)}
-                      className="btn btn-secondary btn-sm mt-2"
-                      disabled={!selectedSubject || prefilling}
-                    >
-                      {prefilling ? <FaSpinner className="spinner-sm" /> : "Prefill Academic"}
-                    </button>
-                  </div>
-
-                  {selectedSubject && (
-                    <div className="academic-form row">
-                      <div className="form-group col-md-3">
-                        <label>PT1:</label>
-                        <input type="number" className="form-control" value={pt1} onChange={(e) => setPt1(e.target.value)} />
-                      </div>
-                      <div className="form-group col-md-3">
-                        <label>PT2:</label>
-                        <input type="number" className="form-control" value={pt2} onChange={(e) => setPt2(e.target.value)} />
-                      </div>
-                      <div className="form-group col-md-3">
-                        <label>PT3:</label>
-                        <input type="number" className="form-control" value={pt3} onChange={(e) => setPt3(e.target.value)} />
-                      </div>
-                      <div className="form-group col-md-3">
-                        <label>Exam:</label>
-                        <input type="number" className="form-control" value={exam} onChange={(e) => setExam(e.target.value)} />
-                      </div>
-                      <div className="col-12 mt-3">
-                        <button onClick={submitAcademicResults} className="btn btn-success" disabled={submittingAcademicResults}>
-                          {submittingAcademicResults ? <FaSpinner className="spinner-sm" /> : "Submit Academic Results"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <h4 className="mt-4">Psychomotor Skills</h4>
+              {selectedStudent && selectedTerm && session ? (
+                <div className="psychomotor-forms-container">
+                  <h4 className="mt-4">Psychomotor Skills Entry</h4>
                   <button
-                    onClick={() => prefillPsychomotorSkills(selectedStudent, selectedTerm, availableSessions.find(s => s.name === session)?.id)}
+                    onClick={prefillPsychomotorSkills}
                     className="btn btn-secondary btn-sm mt-2"
                     disabled={prefilling}
                   >
@@ -927,140 +1264,21 @@ function TeacherDashboard({ teacherUser, token }) {
                       </button>
                     </div>
                   </div>
-
-                  <h4 className="mt-4">Attendance Records</h4>
-                  <button
-                    onClick={() => prefillAttendance(selectedStudent, selectedTerm, availableSessions.find(s => s.name === session)?.id)}
-                    className="btn btn-secondary btn-sm mt-2"
-                    disabled={prefilling}
-                  >
-                    {prefilling ? <FaSpinner className="spinner-sm" /> : "Prefill Attendance"}
-                  </button>
-                  <div className="attendance-form row">
-                    <div className="form-group col-md-6">
-                      <label>Days Opened:</label>
-                      <input type="number" className="form-control" value={daysOpened} onChange={(e) => setDaysOpened(e.target.value)} />
-                    </div>
-                    <div className="form-group col-md-6">
-                      <label>Days Present:</label>
-                      <input type="number" className="form-control" value={daysPresent} onChange={(e) => setDaysPresent(e.target.value)} />
-                    </div>
-                    <div className="col-12 mt-3">
-                      <button onClick={submitAttendance} className="btn btn-success" disabled={submittingAttendance}>
-                        {submittingAttendance ? <FaSpinner className="spinner-sm" /> : "Submit Attendance"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <h4 className="mt-4">View All Results for Selected Student</h4>
-                  <button
-                    onClick={() => fetchStudentResults(selectedStudent, selectedTerm, availableSessions.find(s => s.name === session)?.id)}
-                    className="btn btn-primary mt-2"
-                    disabled={fetchingResults}
-                  >
-                    {fetchingResults ? <FaSpinner className="spinner-sm" /> : "Load All Results"}
-                  </button>
-
-                  {results && (
-                    <div className="mt-4">
-                      <h5>Student Results Overview</h5>
-                      <pre>{JSON.stringify(results, null, 2)}</pre> {/* Display raw results for now */}
-                     {results && (
-  <div className="mt-4 results-display-container">
-    <h5 className="mb-3">Detailed Results for Student</h5>
-
-    /* Academic Results Section */
-    {results.academic_results && results.academic_results.length > 0 && (
-      <div className="academic-results-section mb-4 card">
-        <div className="card-header">
-          <h6>Academic Performance - {selectedTerm} Term, {session} Session</h6>
-        </div>
-        <div className="card-body">
-          <div className="table-responsive">
-            <table className="table table-bordered table-sm academic-table">
-              <thead>
-                <tr>
-                  <th>Subject</th>
-                  <th>PT1</th>
-                  <th>PT2</th>
-                  <th>PT3</th>
-                  <th>Exam</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.academic_results.map((res) => (
-                  <tr key={res.id || res.subject_name}> /* Use res.id if available, else subject_name */
-                    <td>{res.subject_name}</td>
-                    <td>{res.pt1 !== null ? res.pt1 : '-'}</td>
-                    <td>{res.pt2 !== null ? res.pt2 : '-'}</td>
-                    <td>{res.pt3 !== null ? res.pt3 : '-'}</td>
-                    <td>{res.exam !== null ? res.exam : '-'}</td>
-                    <td>{res.total !== null ? res.total : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    )}
-
-    /* Psychomotor Skills Section */
-    {results.psychomotor_results && (
-      <div className="psychomotor-results-section mb-4 card">
-        <div className="card-header">
-          <h6>Psychomotor Skills - {selectedTerm} Term, {session} Session</h6>
-        </div>
-        <div className="card-body">
-          <ul className="list-group list-group-flush">
-            <li className="list-group-item"><strong>Attendance:</strong> {results.psychomotor_results.attendance || 'N/A'}</li>
-            <li className="list-group-item"><strong>Punctuality:</strong> {results.psychomotor_results.punctuality || 'N/A'}</li>
-            <li className="list-group-item"><strong>Neatness:</strong> {results.psychomotor_results.neatness || 'N/A'}</li>
-            <li className="list-group-item"><strong>Honesty:</strong> {results.psychomotor_results.honesty || 'N/A'}</li>
-            <li className="list-group-item"><strong>Responsibility:</strong> {results.psychomotor_results.responsibility || 'N/A'}</li>
-            <li className="list-group-item"><strong>Creativity:</strong> {results.psychomotor_results.creativity || 'N/A'}</li>
-            <li className="list-group-item"><strong>Sports:</strong> {results.psychomotor_results.sports || 'N/A'}</li>
-          </ul>
-        </div>
-      </div>
-    )}
-
-    /* Attendance Records Section */
-    {results.attendance_records && (
-      <div className="attendance-records-section mb-4 card">
-        <div className="card-header">
-          <h6>Attendance Records - {selectedTerm} Term, {session} Session</h6>
-        </div>
-        <div className="card-body">
-          <ul className="list-group list-group-flush">
-            <li className="list-group-item"><strong>Days Opened:</strong> {results.attendance_records.days_opened !== null ? results.attendance_records.days_opened : 'N/A'}</li>
-            <li className="list-group-item"><strong>Days Present:</strong> {results.attendance_records.days_present !== null ? results.attendance_records.days_present : 'N/A'}</li>
-          </ul>
-        </div>
-      </div>
-    )}
-
-    {!results.academic_results?.length && !results.psychomotor_results && !results.attendance_records && (
-      <div className="alert alert-info mt-4" role="alert">
-        No results found for this student for the selected term and session.
-      </div>
-    )}
-  </div>
-)}
-                    </div>
-                  )}
-
+                </div>
+              ) : (
+                <div className="alert alert-info mt-4" role="alert">
+                  Please select a Student, Term, and Session to manage psychomotor skills.
                 </div>
               )}
             </section>
           )}
 
+
           {activeTab === 'class-results' && (
             <section className="class-results-section">
               <h3>Class Overall Results for {teacherInfo.class}</h3>
               <div className="form-row">
-                <div className="form-group col-md-4">
+                <div className="form-group col-md-6">
                   <label>Term:</label>
                   <select
                     value={selectedTerm}
@@ -1072,20 +1290,20 @@ function TeacherDashboard({ teacherUser, token }) {
                     <option value="3rd">3rd Term</option>
                   </select>
                 </div>
-                <div className="form-group col-md-4">
+                <div className="form-group col-md-6">
                   <label>Session:</label>
                   <select
                     value={session}
                     onChange={handleSessionChange}
                     className="form-control"
                   >
-                    <option value="">-- Select Session --</option>
+                    <option value="">{availableSessions.length > 0 ? "-- Select Session --" : "Loading sessions..."}</option>
                     {availableSessions.map(s => (
                       <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
                   </select>
                 </div>
-                <div className="form-group col-md-4 d-flex align-items-end">
+                <div className="form-group col-12 d-flex justify-content-end">
                   <button onClick={fetchClassOverallResults} className="btn btn-primary" disabled={fetchingClassResults}>
                     {fetchingClassResults ? <FaSpinner className="spinner-sm" /> : "Load Class Results"}
                   </button>
@@ -1120,8 +1338,13 @@ function TeacherDashboard({ teacherUser, token }) {
                               <button
                                 onClick={() => {
                                   setSelectedStudent(student.id);
-                                  fetchStudentResults(student.id, selectedTerm, availableSessions.find(s => s.name === session)?.id);
-                                  setActiveTab('upload-results'); // Switch to upload tab to view details
+                                  const currentSessionId = availableSessions.find(s => s.name === session)?.id;
+                                  if (currentSessionId) {
+                                    fetchStudentResults(student.id, selectedTerm, currentSessionId);
+                                  } else {
+                                    alert('Session ID not found for selected session.');
+                                  }
+                                  setActiveTab('academic-attendance');
                                 }}
                                 className="btn btn-secondary btn-sm"
                               >

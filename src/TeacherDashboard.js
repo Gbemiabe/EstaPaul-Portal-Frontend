@@ -53,6 +53,8 @@ function TeacherDashboard({ teacherUser, token }) {
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
   const [fetchingResults, setFetchingResults] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
+  const [bulkResults, setBulkResults] = useState([]);
+  const [bulkUploadProgress, setBulkUploadProgress] = useState(0);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -119,301 +121,230 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-const fetchClassOverallResults = async () => {
-  if (!teacherInfo?.class || !selectedTerm || !session) {
-    alert('Please select both term and session to view class results');
-    return;
-  }
-  
-  setFetchingClassResults(true);
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
-      {
+  const fetchClassOverallResults = async () => {
+    if (!teacherInfo?.class || !selectedTerm || !session) {
+      alert('Please select both term and session to view class results');
+      return;
+    }
+    
+    setFetchingClassResults(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setClassOverallResults(data);
+    } catch (error) {
+      console.error('Error fetching class overall results:', error);
+      alert(`Failed to fetch class results: ${error.message}`);
+    } finally {
+      setFetchingClassResults(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'class-results' && teacherInfo?.class) {
+      fetchClassOverallResults();
+    }
+  }, [activeTab, selectedTerm, session, teacherInfo?.class]);
+
+  const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
+    if (!studentId || !subjectId || !term || !session) {
+      return;
+    }
+    setPrefilling(true);
+    try {
+      const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch academic result for prefill:", error);
+      return null;
+    } finally {
+      setPrefilling(false);
+    }
+  };
+
+  const fetchPsychomotorForPrefill = async (studentId, term, session) => {
+    if (!studentId || !term || !session) {
+      return;
+    }
+    setPrefilling(true);
+    try {
+      const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch psychomotor result for prefill:", error);
+      return null;
+    } finally {
+      setPrefilling(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'upload') {
+      setPt1(''); setPt2(''); setPt3(''); setExam('');
+      setAttendance(''); setPunctuality(''); setNeatness('');
+      setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
+      setDaysOpened(''); setDaysPresent('');
+
+      if (selectedStudent && selectedSubject && selectedTerm && session) {
+        fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
+          .then(data => {
+            if (data && data.result) {
+              setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
+              setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
+              setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
+              setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
+            }
+          });
+      }
+
+      if (selectedStudent && selectedTerm && session) {
+        fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+          .then(data => {
+            if (data) {
+              if (data.psychomotor) {
+                setAttendance(data.psychomotor.attendance || '');
+                setPunctuality(data.psychomotor.punctuality || '');
+                setNeatness(data.psychomotor.neatness || '');
+                setHonesty(data.psychomotor.honesty || '');
+                setResponsibility(data.psychomotor.responsibility || '');
+                setCreativity(data.psychomotor.creativity || '');
+                setSports(data.psychomotor.sports || '');
+              }
+              if (data.days_opened !== undefined && data.days_present !== undefined) {
+                setDaysOpened(data.days_opened.toString());
+                setDaysPresent(data.days_present.toString());
+              }
+            }
+          });
+      }
+    }
+  }, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
+
+  useEffect(() => {
+    if (activeTab === 'attendance') {
+      setDaysOpened('');
+      setDaysPresent('');
+      setAttendanceSuccess(null);
+
+      if (selectedStudent && selectedTerm && session) {
+        fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+          .then(data => {
+            if (data && data.days_opened !== undefined && data.days_present !== undefined) {
+              setDaysOpened(data.days_opened.toString());
+              setDaysPresent(data.days_present.toString());
+            }
+          });
+      }
+    }
+  }, [activeTab, selectedStudent, selectedTerm, session, token]);
+
+  const fetchStudentResults = async (studentId, term, session) => {
+    setFetchingResults(true);
+    setResults(null);
+    
+    try {
+      if (!studentId || !studentId.trim()) {
+        throw new Error('Missing student ID');
+      }
+      if (!['1st', '2nd', '3rd'].includes(term)) {
+        throw new Error('Invalid term selected');
+      }
+      if (!session || !session.trim()) {
+        throw new Error('Missing academic session');
+      }
+      
+      const encodedStudentId = encodeURIComponent(studentId);
+      const encodedTerm = encodeURIComponent(term);
+      const encodedSession = encodeURIComponent(session);
+      
+      const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${encodedTerm}/${encodedSession}`;
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    setClassOverallResults(data);
-  } catch (error) {
-    console.error('Error fetching class overall results:', error);
-    alert(`Failed to fetch class results: ${error.message}`);
-  } finally {
-    setFetchingClassResults(false);
-  }
-};
-
-useEffect(() => {
-  if (activeTab === 'class-results' && teacherInfo?.class) {
-    fetchClassOverallResults();
-  }
-}, [activeTab, selectedTerm, session, teacherInfo?.class]);
-
-const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
-  if (!studentId || !subjectId || !term || !session) {
-    return;
-  }
-  setPrefilling(true);
-  try {
-    const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-    const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch academic result for prefill:", error);
-    return null;
-  } finally {
-    setPrefilling(false);
-  }
-};
-
-const fetchPsychomotorForPrefill = async (studentId, term, session) => {
-  if (!studentId || !term || !session) {
-    return;
-  }
-  setPrefilling(true);
-  try {
-    const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
-    const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch psychomotor result for prefill:", error);
-    return null;
-  } finally {
-    setPrefilling(false);
-  }
-};
-
-useEffect(() => {
-  if (activeTab === 'upload') {
-    setPt1(''); setPt2(''); setPt3(''); setExam('');
-    setAttendance(''); setPunctuality(''); setNeatness('');
-    setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
-    setDaysOpened(''); setDaysPresent('');
-
-    if (selectedStudent && selectedSubject && selectedTerm && session) {
-      fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
-        .then(data => {
-          if (data && data.result) {
-            setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
-            setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
-            setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
-            setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
-          }
-        });
-    }
-
-    if (selectedStudent && selectedTerm && session) {
-      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
-        .then(data => {
-          if (data) {
-            if (data.psychomotor) {
-              setAttendance(data.psychomotor.attendance || '');
-              setPunctuality(data.psychomotor.punctuality || '');
-              setNeatness(data.psychomotor.neatness || '');
-              setHonesty(data.psychomotor.honesty || '');
-              setResponsibility(data.psychomotor.responsibility || '');
-              setCreativity(data.psychomotor.creativity || '');
-              setSports(data.psychomotor.sports || '');
-            }
-            if (data.days_opened !== undefined && data.days_present !== undefined) {
-              setDaysOpened(data.days_opened.toString());
-              setDaysPresent(data.days_present.toString());
-            }
-          }
-        });
-    }
-  }
-}, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
-
-useEffect(() => {
-  if (activeTab === 'attendance') {
-    setDaysOpened('');
-    setDaysPresent('');
-    setAttendanceSuccess(null);
-
-    if (selectedStudent && selectedTerm && session) {
-      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
-        .then(data => {
-          if (data && data.days_opened !== undefined && data.days_present !== undefined) {
-            setDaysOpened(data.days_opened.toString());
-            setDaysPresent(data.days_present.toString());
-          }
-        });
-    }
-  }
-}, [activeTab, selectedStudent, selectedTerm, session, token]);
-
-const fetchStudentResults = async (studentId, term, session) => {
-  setFetchingResults(true);
-  setResults(null);
-  
-  try {
-    // 1. Input validation (more robust than before)
-    if (!studentId || !studentId.trim()) {
-      throw new Error('Missing student ID');
-    }
-    if (!['1st', '2nd', '3rd'].includes(term)) {
-      throw new Error('Invalid term selected');
-    }
-    if (!session || !session.trim()) {
-      throw new Error('Missing academic session');
-    }
-    // 2. Build and log the URL for debugging
-    const encodedStudentId = encodeURIComponent(studentId);
-    const encodedTerm = encodeURIComponent(term);
-    const encodedSession = encodeURIComponent(session);
-    
-    const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${encodedTerm}/${encodedSession}`;
-    
-    console.log('🔍 Debug Info:', {
-      original: { studentId, term, session },
-      encoded: { encodedStudentId, encodedTerm, encodedSession },
-      finalUrl: url,
-      hasToken: !!token
-    });
-    
-    // 3. Make the API request
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    console.log('📡 Response Info:', {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries())
-    });
-    
-    // 4. Handle response
-    const responseText = await response.text();
-    console.log('📄 Response Text Preview:', responseText.substring(0, 500));
-    
-    // Check for HTML error pages
-    if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
-      console.error('🚨 Server returned HTML error page:', responseText);
-      throw new Error('Server returned an error page - check server logs');
-    }
-    let data;
-    try {
-      data = JSON.parse(responseText);
-      console.log('✅ Parsed Response Data:', data);
-      
-      // 🆕 NEW: Log position information for debugging
-      if (data?.overallPerformance?.position) {
-        console.log('🏆 Position Info:', {
-          position: data.overallPerformance.position,
-          studentName: data.student?.full_name,
-          class: data.student?.class,
-          term: data.term,
-          session: data.session
-        });
-      }
-      
-    } catch (parseError) {
-      console.error('❌ Failed to parse response:', {
-        status: response.status,
-        parseError: parseError.message,
-        response: responseText.substring(0, 200)
-      });
-      throw new Error('Invalid server response format');
-    }
-    
-    // Handle specific error cases
-    if (!response.ok) {
-      console.error('❌ Request failed:', {
-        status: response.status,
-        data: data
       });
       
-      if (response.status === 404) {
-        throw new Error(`Student "${studentId}" not found in records`);
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error('Invalid server response format');
       }
-      if (response.status === 500) {
-        throw new Error(`Server error: ${data.message || data.error || 'Internal server error'}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Student "${studentId}" not found in records`);
+        }
+        if (response.status === 500) {
+          throw new Error(`Server error: ${data.message || data.error || 'Internal server error'}`);
+        }
+        throw new Error(data.message || `Request failed with status ${response.status}`);
       }
-      throw new Error(data.message || `Request failed with status ${response.status}`);
+      
+      setResults(data);
+      setSelectedStudent(studentId);
+      setActiveTab('results');
+      return data;
+      
+    } catch (error) {
+      console.error('Error in fetchStudentResults:', error);
+      let userMessage = error.message;
+      if (error.message.includes('not found')) {
+        userMessage = `Student "${studentId}" not found in system records`;
+      } else if (error.message.includes('Unauthorized') || error.message.includes('your own class')) {
+        userMessage = 'You can only view results for students in your assigned class';
+      } else if (error.message.includes('Server error')) {
+        userMessage = 'Server is experiencing issues. Please try again or contact support.';
+      }
+      
+      alert(`Error: ${userMessage}`);
+      setResults(null);
+      throw error;
+      
+    } finally {
+      setFetchingResults(false);
     }
-    
-    // 5. Update state (maintaining your existing structure)
-    console.log('✅ Setting results successfully');
-    
-    // 🆕 NEW: Enhanced success message with position info
-    if (data?.overallPerformance?.position && data.overallPerformance.position !== 'N/A') {
-      const [pos, total] = data.overallPerformance.position.split('/');
-      const positionSuffix = getPositionSuffix(parseInt(pos));
-      console.log(`🎯 ${data.student?.full_name} is ranked ${positionSuffix} out of ${total} students in ${data.student?.class}`);
-    }
-    
-    setResults(data);
-    setSelectedStudent(studentId);
-    setActiveTab('results');
-    return data;
-    
-  } catch (error) {
-    console.error('💥 Error in fetchStudentResults:', {
-      studentId,
-      term,
-      session,
-      error: error.message,
-      stack: error.stack
-    });
-    
-    // Enhanced error messages
-    let userMessage = error.message;
-    if (error.message.includes('not found')) {
-      userMessage = `Student "${studentId}" not found in system records`;
-    } else if (error.message.includes('Unauthorized') || error.message.includes('your own class')) {
-      userMessage = 'You can only view results for students in your assigned class';
-    } else if (error.message.includes('Server error')) {
-      userMessage = 'Server is experiencing issues. Please try again or contact support.';
-    }
-    
-    alert(`Error: ${userMessage}`);
-    setResults(null);
-    throw error;
-    
-  } finally {
-    setFetchingResults(false);
-  }
-};
+  };
 
-// 🆕 NEW: Helper function to get position suffix (add this outside your component or in utils)
-const getPositionSuffix = (position) => {
-  const num = parseInt(position);
-  if (num % 10 === 1 && num % 100 !== 11) return `${num}st`;
-  if (num % 10 === 2 && num % 100 !== 12) return `${num}nd`;
-  if (num % 10 === 3 && num % 100 !== 13) return `${num}rd`;
-  return `${num}th`;
-};  
   const handleSubmitResults = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {
@@ -487,6 +418,79 @@ const getPositionSuffix = (position) => {
       alert(`Error uploading results: ${error.message}`);
     } finally {
       setSubmittingResults(false);
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (!selectedSubject || !selectedTerm || !session) {
+      alert('Please select subject, term, and session');
+      return;
+    }
+
+    if (bulkResults.length === 0) {
+      alert('No results to upload');
+      return;
+    }
+
+    // Validate all scores
+    const invalidScores = bulkResults.some(result => {
+      return (
+        (result.pt1 && (parseInt(result.pt1) > 30 || parseInt(result.pt1) < 0)) ||
+        (result.pt2 && (parseInt(result.pt2) > 30 || parseInt(result.pt2) < 0)) ||
+        (result.pt3 && (parseInt(result.pt3) > 30 || parseInt(result.pt3) < 0)) ||
+        (result.exam && (parseInt(result.exam) > 70 || parseInt(result.exam) < 0))
+      );
+    });
+
+    if (invalidScores) {
+      alert('Please ensure all scores are within valid ranges (PT: 0-30, Exam: 0-70)');
+      return;
+    }
+
+    setSubmittingResults(true);
+    setBulkUploadProgress(0);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/teacher/results/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subject_id: selectedSubject,
+          term: selectedTerm,
+          session,
+          results: bulkResults.map(result => ({
+            student_id: result.student_id,
+            pt1: result.pt1 ? parseInt(result.pt1) : null,
+            pt2: result.pt2 ? parseInt(result.pt2) : null,
+            pt3: result.pt3 ? parseInt(result.pt3) : null,
+            exam: result.exam ? parseInt(result.exam) : null,
+            attendance: attendance || null,
+            punctuality: punctuality || null,
+            neatness: neatness || null,
+            honesty: honesty || null,
+            responsibility: responsibility || null,
+            creativity: creativity || null,
+            sports: sports || null
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Bulk upload failed');
+      }
+
+      const data = await response.json();
+      alert(`Successfully uploaded ${data.count} results for ${data.subject}`);
+      setBulkResults([]);
+    } catch (error) {
+      alert(`Bulk upload error: ${error.message}`);
+    } finally {
+      setSubmittingResults(false);
+      setBulkUploadProgress(0);
     }
   };
 
@@ -597,6 +601,79 @@ const getPositionSuffix = (position) => {
     student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const BulkResultsTable = ({ students, results, onUpdate, onRemove }) => {
+    return (
+      <div className="bulk-results-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>PT1 (0-30)</th>
+              <th>PT2 (0-30)</th>
+              <th>PT3 (0-30)</th>
+              <th>Exam (0-70)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((result, index) => {
+              const student = students.find(s => s.student_id === result.student_id || s.id === result.student_id);
+              return (
+                <tr key={index}>
+                  <td>{student?.full_name || result.student_id}</td>
+                  <td>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="30" 
+                      value={result.pt1 || ''}
+                      onChange={(e) => onUpdate(index, 'pt1', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="30" 
+                      value={result.pt2 || ''}
+                      onChange={(e) => onUpdate(index, 'pt2', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="30" 
+                      value={result.pt3 || ''}
+                      onChange={(e) => onUpdate(index, 'pt3', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="70" 
+                      value={result.exam || ''}
+                      onChange={(e) => onUpdate(index, 'exam', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <button 
+                      onClick={() => onRemove(index)}
+                      className="btn btn-sm btn-danger"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -786,198 +863,335 @@ const getPositionSuffix = (position) => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitResults} className="data-form upload-form">
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label htmlFor="select-student">Select Student: <span className="required">*</span></label>
-                    <select
-                      id="select-student"
-                      value={selectedStudent}
-                      onChange={(e) => setSelectedStudent(e.target.value)}
-                      required
-                    >
-                      <option value="">Choose a student...</option>
-                      {classStudents.map(student => (
-                        <option key={student.id} value={student.student_id || student.id}>
-                          {student.full_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="upload-mode-selector">
+                <button 
+                  className={bulkResults.length === 0 ? 'active' : ''}
+                  onClick={() => setBulkResults([])}
+                >
+                  Single Student
+                </button>
+                <button 
+                  className={bulkResults.length > 0 ? 'active' : ''}
+                  onClick={() => {
+                    const initialBulk = classStudents.map(student => ({
+                      student_id: student.student_id || student.id,
+                      pt1: '',
+                      pt2: '',
+                      pt3: '',
+                      exam: ''
+                    }));
+                    setBulkResults(initialBulk);
+                  }}
+                >
+                  Bulk Upload
+                </button>
+              </div>
 
-                  <div className="form-group">
-                    <label htmlFor="select-subject">Select Subject: <span className="required">*</span></label>
-                    <select
-                      id="select-subject"
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                      required
-                    >
-                      <option value="">Choose a subject...</option>
-                      {subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                    {subjects.length === 0 && (
-                      <p className="form-hint">
-                        No subjects available. <button type="button" onClick={() => setActiveTab('add-subject')} className="link-btn">Add subjects first</button>
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label htmlFor="select-term">Term: <span className="required">*</span></label>
-                    <select
-                      id="select-term"
-                      value={selectedTerm}
-                      onChange={(e) => setSelectedTerm(e.target.value)}
-                      required
-                    >
-                      <option value="1st">First Term</option>
-                      <option value="2nd">Second Term</option>
-                      <option value="3rd">Third Term</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="academic-session">Academic Session: <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      id="academic-session"
-                      value={session}
-                      onChange={(e) => setSession(e.target.value)}
-                      placeholder="e.g., 2023/2024"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <h3 className="form-section-heading">Academic Scores {prefilling && selectedStudent && selectedSubject ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
-
-                <div className="form-grid-4">
-                  <div className="form-group">
-                    <label htmlFor="pt1">PT 1 Score: <span className="required">*</span></label>
-                    <input
-                      type="number"
-                      id="pt1"
-                      min="0"
-                      max="30"
-                      value={pt1}
-                      onChange={(e) => setPt1(e.target.value)}
-                      placeholder="Max: 30"
-                      required
-                    />
-                    <small className="input-hint">Out of 30 marks</small>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="pt2">PT 2 Score: <span className="required">*</span></label>
-                    <input
-                      type="number"
-                      id="pt2"
-                      min="0"
-                      max="30"
-                      value={pt2}
-                      onChange={(e) => setPt2(e.target.value)}
-                      placeholder="Max: 30"
-                      required
-                    />
-                    <small className="input-hint">Out of 30 marks</small>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="pt3">PT 3 Score: <span className="required">*</span></label>
-                    <input
-                      type="number"
-                      id="pt3"
-                      min="0"
-                      max="30"
-                      value={pt3}
-                      onChange={(e) => setPt3(e.target.value)}
-                      placeholder="Max: 30"
-                      required
-                    />
-                    <small className="input-hint">Out of 30 marks</small>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="exam-score">Exam Score: <span className="required">*</span></label>
-                    <input
-                      type="number"
-                      id="exam-score"
-                      min="0"
-                      max="70"
-                      value={exam}
-                      onChange={(e) => setExam(e.target.value)}
-                      placeholder="Max: 70"
-                      required
-                    />
-                    <small className="input-hint">Out of 70 marks</small>
-                  </div>
-                </div>
-
-                {pt1 !== '' && pt2 !== '' && pt3 !== '' && exam !== '' && (
-                  <div className="score-preview">
-                    <h4>Score Preview:</h4>
-                    <p>Average PT: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3)}</p>
-                    <p>Total Score: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3 + parseInt(exam || 0))}/100</p>
-                  </div>
-                )}
-
-                <h3 className="form-section-heading">Psychomotor Skills Assessment {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
-
-                <div className="form-grid-3">
-                  {[
-                    { key: 'attendance', label: 'Attendance', value: attendance, setter: setAttendance },
-                    { key: 'punctuality', label: 'Punctuality', value: punctuality, setter: setPunctuality },
-                    { key: 'neatness', label: 'Neatness', value: neatness, setter: setNeatness },
-                    { key: 'honesty', label: 'Honesty', value: honesty, setter: setHonesty },
-                    { key: 'responsibility', label: 'Responsibility', value: responsibility, setter: setResponsibility },
-                    { key: 'creativity', label: 'Creativity', value: creativity, setter: setCreativity },
-                    { key: 'sports', label: 'Sports/Physical Activity', value: sports, setter: setSports }
-                  ].map((skill) => (
-                    <div key={skill.key} className="form-group">
-                      <label htmlFor={skill.key}>{skill.label}: <span className="required">*</span></label>
+              {bulkResults.length === 0 ? (
+                <form onSubmit={handleSubmitResults} className="data-form upload-form">
+                  <div className="form-grid-2">
+                    <div className="form-group">
+                      <label htmlFor="select-student">Select Student: <span className="required">*</span></label>
                       <select
-                        id={skill.key}
-                        value={skill.value}
-                        onChange={(e) => skill.setter(e.target.value)}
+                        id="select-student"
+                        value={selectedStudent}
+                        onChange={(e) => setSelectedStudent(e.target.value)}
                         required
                       >
-                        <option value="">Select grade</option>
-                        <option value="A">A - Excellent</option>
-                        <option value="B">B - Very Good</option>
-                        <option value="C">C - Good</option>
-                        <option value="D">D - Fair</option>
-                        <option value="E">E - Poor</option>
-                        <option value="F">F - Very Poor</option>
+                        <option value="">Choose a student...</option>
+                        {classStudents.map(student => (
+                          <option key={student.id} value={student.student_id || student.id}>
+                            {student.full_name}
+                          </option>
+                        ))}
                       </select>
                     </div>
-                  ))}
-                </div>
 
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    onClick={resetUploadForm}
-                    className="btn btn-secondary"
-                    disabled={submittingResults || prefilling}
-                  >
-                    Reset Form
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={submittingResults || prefilling}
-                  >
-                    {submittingResults ? <FaSpinner className="spinner-icon" /> : 'Upload Results'}
-                  </button>
+                    <div className="form-group">
+                      <label htmlFor="select-subject">Select Subject: <span className="required">*</span></label>
+                      <select
+                        id="select-subject"
+                        value={selectedSubject}
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        required
+                      >
+                        <option value="">Choose a subject...</option>
+                        {subjects.map(subject => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name}
+                          </option>
+                        ))}
+                      </select>
+                      {subjects.length === 0 && (
+                        <p className="form-hint">
+                          No subjects available. <button type="button" onClick={() => setActiveTab('add-subject')} className="link-btn">Add subjects first</button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-grid-2">
+                    <div className="form-group">
+                      <label htmlFor="select-term">Term: <span className="required">*</span></label>
+                      <select
+                        id="select-term"
+                        value={selectedTerm}
+                        onChange={(e) => setSelectedTerm(e.target.value)}
+                        required
+                      >
+                        <option value="1st">First Term</option>
+                        <option value="2nd">Second Term</option>
+                        <option value="3rd">Third Term</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="academic-session">Academic Session: <span className="required">*</span></label>
+                      <input
+                        type="text"
+                        id="academic-session"
+                        value={session}
+                        onChange={(e) => setSession(e.target.value)}
+                        placeholder="e.g., 2023/2024"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <h3 className="form-section-heading">Academic Scores {prefilling && selectedStudent && selectedSubject ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
+
+                  <div className="form-grid-4">
+                    <div className="form-group">
+                      <label htmlFor="pt1">PT 1 Score: <span className="required">*</span></label>
+                      <input
+                        type="number"
+                        id="pt1"
+                        min="0"
+                        max="30"
+                        value={pt1}
+                        onChange={(e) => setPt1(e.target.value)}
+                        placeholder="Max: 30"
+                        required
+                      />
+                      <small className="input-hint">Out of 30 marks</small>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="pt2">PT 2 Score: <span className="required">*</span></label>
+                      <input
+                        type="number"
+                        id="pt2"
+                        min="0"
+                        max="30"
+                        value={pt2}
+                        onChange={(e) => setPt2(e.target.value)}
+                        placeholder="Max: 30"
+                        required
+                      />
+                      <small className="input-hint">Out of 30 marks</small>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="pt3">PT 3 Score: <span className="required">*</span></label>
+                      <input
+                        type="number"
+                        id="pt3"
+                        min="0"
+                        max="30"
+                        value={pt3}
+                        onChange={(e) => setPt3(e.target.value)}
+                        placeholder="Max: 30"
+                        required
+                      />
+                      <small className="input-hint">Out of 30 marks</small>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="exam-score">Exam Score: <span className="required">*</span></label>
+                      <input
+                        type="number"
+                        id="exam-score"
+                        min="0"
+                        max="70"
+                        value={exam}
+                        onChange={(e) => setExam(e.target.value)}
+                        placeholder="Max: 70"
+                        required
+                      />
+                      <small className="input-hint">Out of 70 marks</small>
+                    </div>
+                  </div>
+
+                  {pt1 !== '' && pt2 !== '' && pt3 !== '' && exam !== '' && (
+                    <div className="score-preview">
+                      <h4>Score Preview:</h4>
+                      <p>Average PT: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3)}</p>
+                      <p>Total Score: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3 + parseInt(exam || 0))}/100</p>
+                    </div>
+                  )}
+
+                  <h3 className="form-section-heading">Psychomotor Skills Assessment {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
+
+                  <div className="form-grid-3">
+                    {[
+                      { key: 'attendance', label: 'Attendance', value: attendance, setter: setAttendance },
+                      { key: 'punctuality', label: 'Punctuality', value: punctuality, setter: setPunctuality },
+                      { key: 'neatness', label: 'Neatness', value: neatness, setter: setNeatness },
+                      { key: 'honesty', label: 'Honesty', value: honesty, setter: setHonesty },
+                      { key: 'responsibility', label: 'Responsibility', value: responsibility, setter: setResponsibility },
+                      { key: 'creativity', label: 'Creativity', value: creativity, setter: setCreativity },
+                      { key: 'sports', label: 'Sports/Physical Activity', value: sports, setter: setSports }
+                    ].map((skill) => (
+                      <div key={skill.key} className="form-group">
+                        <label htmlFor={skill.key}>{skill.label}: <span className="required">*</span></label>
+                        <select
+                          id={skill.key}
+                          value={skill.value}
+                          onChange={(e) => skill.setter(e.target.value)}
+                          required
+                        >
+                          <option value="">Select grade</option>
+                          <option value="A">A - Excellent</option>
+                          <option value="B">B - Very Good</option>
+                          <option value="C">C - Good</option>
+                          <option value="D">D - Fair</option>
+                          <option value="E">E - Poor</option>
+                          <option value="F">F - Very Poor</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      onClick={resetUploadForm}
+                      className="btn btn-secondary"
+                      disabled={submittingResults || prefilling}
+                    >
+                      Reset Form
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={submittingResults || prefilling}
+                    >
+                      {submittingResults ? <FaSpinner className="spinner-icon" /> : 'Upload Results'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="bulk-upload-container">
+                  <div className="bulk-upload-controls">
+                    <div className="form-group">
+                      <label>Subject: <span className="required">*</span></label>
+                      <select
+                        value={selectedSubject}
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        required
+                      >
+                        <option value="">Choose subject...</option>
+                        {subjects.map(subject => (
+                          <option key={subject.id} value={subject.id}>{subject.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Term: <span className="required">*</span></label>
+                      <select
+                        value={selectedTerm}
+                        onChange={(e) => setSelectedTerm(e.target.value)}
+                        required
+                      >
+                        <option value="1st">First Term</option>
+                        <option value="2nd">Second Term</option>
+                        <option value="3rd">Third Term</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Session: <span className="required">*</span></label>
+                      <input
+                        type="text"
+                        value={session}
+                        onChange={(e) => setSession(e.target.value)}
+                        placeholder="e.g., 2023/2024"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bulk-upload-psychomotor">
+                    <h3>Psychomotor Skills (Applied to All Students)</h3>
+                    <div className="form-grid-3">
+                      {[
+                        { key: 'attendance', label: 'Attendance', value: attendance, setter: setAttendance },
+                        { key: 'punctuality', label: 'Punctuality', value: punctuality, setter: setPunctuality },
+                        { key: 'neatness', label: 'Neatness', value: neatness, setter: setNeatness },
+                        { key: 'honesty', label: 'Honesty', value: honesty, setter: setHonesty },
+                        { key: 'responsibility', label: 'Responsibility', value: responsibility, setter: setResponsibility },
+                        { key: 'creativity', label: 'Creativity', value: creativity, setter: setCreativity },
+                        { key: 'sports', label: 'Sports', value: sports, setter: setSports }
+                      ].map((skill) => (
+                        <div key={skill.key} className="form-group">
+                          <label>{skill.label}:</label>
+                          <select
+                            value={skill.value}
+                            onChange={(e) => skill.setter(e.target.value)}
+                          >
+                            <option value="">Select grade</option>
+                            <option value="A">A - Excellent</option>
+                            <option value="B">B - Very Good</option>
+                            <option value="C">C - Good</option>
+                            <option value="D">D - Fair</option>
+                            <option value="E">E - Poor</option>
+                            <option value="F">F - Very Poor</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <BulkResultsTable
+                    students={classStudents}
+                    results={bulkResults}
+                    onUpdate={(index, field, value) => {
+                      const updated = [...bulkResults];
+                      updated[index][field] = value;
+                      setBulkResults(updated);
+                    }}
+                    onRemove={(index) => {
+                      const updated = [...bulkResults];
+                      updated.splice(index, 1);
+                      setBulkResults(updated);
+                    }}
+                  />
+
+                  <div className="bulk-upload-actions">
+                    <button
+                      onClick={() => setBulkResults([])}
+                      className="btn btn-secondary"
+                    >
+                      Cancel Bulk Upload
+                    </button>
+                    <button
+                      onClick={handleBulkUpload}
+                      className="btn btn-primary"
+                      disabled={submittingResults}
+                    >
+                      {submittingResults ? (
+                        <>
+                          <FaSpinner className="spinner-icon" />
+                          Uploading ({bulkUploadProgress}%)
+                        </>
+                      ) : (
+                        `Upload ${bulkResults.length} Results`
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </form>
+              )}
             </section>
           )}
 
@@ -1352,45 +1566,45 @@ const getPositionSuffix = (position) => {
               ) : classOverallResults ? (
                 <div className="class-results-container">
                   <div className="results-summary-card">
-  <h3>Class: {classOverallResults.class}</h3>
-  <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
-  <p>Total Students: {classOverallResults.results.length}</p>
-  <p>
-    Class Average: <strong>{classOverallResults.classAverage ? `${classOverallResults.classAverage}%` : 'N/A'}</strong>
-  </p>
-</div>
+                    <h3>Class: {classOverallResults.class}</h3>
+                    <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
+                    <p>Total Students: {classOverallResults.results.length}</p>
+                    <p>
+                      Class Average: <strong>{classOverallResults.classAverage ? `${classOverallResults.classAverage}%` : 'N/A'}</strong>
+                    </p>
+                  </div>
                   <div className="table-responsive">
                     <table className="data-table class-results-table">
-     <thead>
-  <tr>
-    <th>Position</th>
-    <th>Student Name</th>
-    <th>Total Score</th>
-    <th>Percentage</th>
-    <th>Actions</th>
-  </tr>
-</thead>
-<tbody>
-  {classOverallResults.results.map((student, index) => (
-    <tr key={student.id}>
-      <td>{student.position}</td>
-      <td>{student.full_name}</td>
-      <td>{student.term_total_score}</td>
-      <td>{student.percentage ? `${student.percentage}%` : 'N/A'}</td>
-      <td>
-        <button
-          onClick={() => {
-            setSelectedStudent(student.id);
-            fetchStudentResults(student.id, selectedTerm, session);
-          }}
-          className="btn btn-secondary btn-sm"
-        >
-          View Details
-        </button>
-      </td>
-    </tr>
-  ))}
-</tbody>
+                      <thead>
+                        <tr>
+                          <th>Position</th>
+                          <th>Student Name</th>
+                          <th>Total Score</th>
+                          <th>Percentage</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {classOverallResults.results.map((student, index) => (
+                          <tr key={student.id}>
+                            <td>{student.position}</td>
+                            <td>{student.full_name}</td>
+                            <td>{student.term_total_score}</td>
+                            <td>{student.percentage ? `${student.percentage}%` : 'N/A'}</td>
+                            <td>
+                              <button
+                                onClick={() => {
+                                  setSelectedStudent(student.id);
+                                  fetchStudentResults(student.id, selectedTerm, session);
+                                }}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
                     </table>
                   </div>
                 </div>

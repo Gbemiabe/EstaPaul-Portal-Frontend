@@ -34,6 +34,7 @@ function TeacherDashboard({ teacherUser, token }) {
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classOverallResults, setClassOverallResults] = useState(null);
+  const [sessionId, setSessionId] = useState('');
 
   // Bulk Results States
   const [bulkResults, setBulkResults] = useState([]);

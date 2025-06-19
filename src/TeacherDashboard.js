@@ -31,7 +31,8 @@ const generateSessions = () => {
 };
 const ALL_SESSIONS = generateSessions();
 
-function TeacherDashboard({ teacherUser, token }) {
+// Make sure `onLogout` is passed as a prop from your parent component (e.g., App.js)
+function TeacherDashboard({ teacherUser, token, onLogout }) {
     const navigate = useNavigate();
     const [teacherInfo, setTeacherInfo] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -204,7 +205,6 @@ function TeacherDashboard({ teacherUser, token }) {
         }
     };
 
-
     // Fetch Class Overall Results
     const fetchClassOverallResults = useCallback(async () => {
         if (!teacherInfo || !teacherInfo.class || !selectedTerm || !session) return;
@@ -222,7 +222,6 @@ function TeacherDashboard({ teacherUser, token }) {
             setClassOverallResults(null);
         }
     }, [teacherInfo, selectedTerm, session, token]);
-
 
     // Handle Add Subject
     const handleAddSubject = async (e) => {
@@ -400,6 +399,42 @@ function TeacherDashboard({ teacherUser, token }) {
         });
     }, [selectedTerm, session, selectedSubject]); // Dependencies for useCallback
 
+    // Fetch Bulk Prefill Data (Defined here to be accessible by useEffect and handleSubmitBulkAcademicScores)
+    const fetchBulkPrefillData = useCallback(async (classId, subjectId, term, session) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/teacher/results/class/${encodeURIComponent(classId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                if (response.status === 404) {
+                    setBulkAcademicResults([]); // No data found, initialize empty
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            // Map fetched data to ensure all students are present in bulkAcademicResults,
+            // and prefill their scores if available.
+            const prefilledBulkData = classStudents.map(student => {
+                const existingResult = data.find(r => r.student_id === student.id);
+                return {
+                    student_id: student.id,
+                    pt1: existingResult ? (existingResult.pt1 !== null ? existingResult.pt1 : '') : '',
+                    pt2: existingResult ? (existingResult.pt2 !== null ? existingResult.pt2 : '') : '',
+                    pt3: existingResult ? (existingResult.pt3 !== null ? existingResult.pt3 : '') : '',
+                    exam: existingResult ? (existingResult.exam !== null ? existingResult.exam : '') : '',
+                    term: term, // Use the passed term and session
+                    session: session,
+                    subject_id: subjectId, // Use the passed subjectId
+                };
+            });
+            setBulkAcademicResults(prefilledBulkData);
+        } catch (error) {
+            console.error("Error fetching bulk prefill data:", error);
+            setBulkAcademicResults([]); // On error, start empty
+        }
+    }, [token, classStudents, setBulkAcademicResults]); // Dependencies for useCallback
+
     // Handle Bulk Academic Scores Submission
     const handleSubmitBulkAcademicScores = async () => {
         setBulkUploadLoading(true);
@@ -450,8 +485,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
             const data = await response.json();
             setBulkUploadSuccess(data.message || 'Bulk academic results uploaded successfully!');
-            // Optionally re-fetch bulk data to reflect changes or clear form
-            // Re-fetch existing data for the current subject/term/session to update the table
+            // After successful upload, refresh the bulk data in the table
             if (teacherInfo && teacherInfo.class) {
                 fetchBulkPrefillData(teacherInfo.class, selectedSubject, selectedTerm, session);
             }
@@ -464,7 +498,7 @@ function TeacherDashboard({ teacherUser, token }) {
     };
 
 
-    // Combined useEffect for data fetching based on activeTab and selections
+    // Combined useEffect for initial data fetching based on activeTab and selections
     useEffect(() => {
         if (teacherInfo) {
             fetchClassStudents();
@@ -524,42 +558,6 @@ function TeacherDashboard({ teacherUser, token }) {
                 });
         }
 
-        // Logic for prefilling BULK academic results table
-        const fetchBulkPrefillData = async (classId, subjectId, term, session) => {
-            try {
-                // This uses the new backend endpoint for bulk prefill
-                const response = await fetch(`${API_BASE_URL}/teacher/results/class/${encodeURIComponent(classId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) {
-                    if (response.status === 404) {
-                         setBulkAcademicResults([]); // No data found, initialize empty
-                         return;
-                    }
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                // Map fetched data to include student_id as key for easy lookup in handleBulkScoreChange
-                const prefilledBulkData = classStudents.map(student => {
-                    const existingResult = data.find(r => r.student_id === student.id);
-                    return {
-                        student_id: student.id,
-                        pt1: existingResult ? (existingResult.pt1 !== null ? existingResult.pt1 : '') : '',
-                        pt2: existingResult ? (existingResult.pt2 !== null ? existingResult.pt2 : '') : '',
-                        pt3: existingResult ? (existingResult.pt3 !== null ? existingResult.pt3 : '') : '',
-                        exam: existingResult ? (existingResult.exam !== null ? existingResult.exam : '') : '',
-                        term: selectedTerm,
-                        session: session,
-                        subject_id: selectedSubject,
-                    };
-                });
-                setBulkAcademicResults(prefilledBulkData);
-            } catch (error) {
-                console.error("Error fetching bulk prefill data:", error);
-                setBulkAcademicResults([]); // On error, start empty
-            }
-        };
-
         // Trigger bulk prefill when relevant selections change
         if (activeTab === 'upload' && teacherInfo && teacherInfo.class && selectedSubject && selectedTerm && session) {
             fetchBulkPrefillData(teacherInfo.class, selectedSubject, selectedTerm, session);
@@ -567,7 +565,7 @@ function TeacherDashboard({ teacherUser, token }) {
             setBulkAcademicResults([]); // Clear bulk results if not all criteria selected
         }
 
-    }, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token, classStudents, teacherInfo, fetchClassStudents]);
+    }, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token, classStudents, teacherInfo, fetchClassStudents, fetchBulkPrefillData]);
 
 
     // Effect to fetch class overall results
@@ -640,7 +638,7 @@ function TeacherDashboard({ teacherUser, token }) {
             </nav>
 
             <main className="dashboard-content">
-                
+                {/* Students Tab */}
                 {activeTab === 'students' && (
                     <section className="dashboard-section">
                         <h2>My Students ({teacherInfo.class})</h2>
@@ -660,7 +658,6 @@ function TeacherDashboard({ teacherUser, token }) {
                                             <tr key={student.id}>
                                                 <td>{student.student_id}</td>
                                                 <td>{student.full_name}</td>
-                                                <td>{student.gender}</td>
                                                 <td>{new Date(student.dob).toLocaleDateString()}</td>
                                             </tr>
                                         ))}
@@ -742,7 +739,7 @@ function TeacherDashboard({ teacherUser, token }) {
                                 ))}
                             </select>
                         </div>
-                              
+
                         <h3 style={{ marginTop: '30px', marginBottom: '20px' }}>Bulk Academic Results Upload</h3>
 
                         {classStudents.length > 0 ? (
@@ -844,9 +841,6 @@ function TeacherDashboard({ teacherUser, token }) {
                         )}
 
 
-                        {/* ========================================= */}
-                        {/* SINGLE ACADEMIC RESULTS UPLOAD SECTION (COMMENTED OUT) */}
-                        {/* ========================================= */}
                         {/*
                         <h3 style={{ marginTop: '30px', marginBottom: '20px' }}>Single Academic Results Upload (Commented Out)</h3>
                         <form onSubmit={handleSubmitAcademicScores}>

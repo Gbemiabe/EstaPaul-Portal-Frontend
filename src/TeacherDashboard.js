@@ -29,258 +29,483 @@ function TeacherDashboard({ teacherUser, token }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [results, setResults] = useState(null);
   const [selectedTerm, setSelectedTerm] = useState('1st');
-  const [sessionId, setSessionId] = useState('');
-  const [sessionName, setSessionName] = useState('');
-  const [availableSessions, setAvailableSessions] = useState([]);
+  const [session, setSession] = useState('2023/2024');
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classOverallResults, setClassOverallResults] = useState(null);
-
-  // Bulk Results States
-  const [bulkResults, setBulkResults] = useState([]);
-  const [bulkSubject, setBulkSubject] = useState('');
-  const [bulkTerm, setBulkTerm] = useState('1st');
-  const [bulkSessionId, setBulkSessionId] = useState('');
-  const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
-
-  // General Loading/Submitting States
-  const [fetchingClassResults, setFetchingClassResults] = useState(false);
-  const [addingSubject, setAddingSubject] = useState(false);
-  const [fetchingResults, setFetchingResults] = useState(false);
-
-  // Attendance States
+  const [pt1, setPt1] = useState('');
+  const [pt2, setPt2] = useState('');
+  const [pt3, setPt3] = useState('');
+  const [exam, setExam] = useState('');
+  const [attendance, setAttendance] = useState('');
+  const [punctuality, setPunctuality] = useState('');
+  const [neatness, setNeatness] = useState('');
+  const [honesty, setHonesty] = useState('');
+  const [responsibility, setResponsibility] = useState('');
+  const [creativity, setCreativity] = useState('');
+  const [sports, setSports] = useState('');
   const [daysOpened, setDaysOpened] = useState('');
   const [daysPresent, setDaysPresent] = useState('');
   const [attendanceSuccess, setAttendanceSuccess] = useState(null);
+  const [fetchingClassResults, setFetchingClassResults] = useState(false);
+  const [submittingResults, setSubmittingResults] = useState(false);
+  const [addingSubject, setAddingSubject] = useState(false);
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
+  const [fetchingResults, setFetchingResults] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
 
-  // Psychomotor States
-  const [psychomotorForm, setPsychomotorForm] = useState({
-    student_id: '',
-    term: '',
-    session_id: '',
-    attendance: '',
-    punctuality: '',
-    neatness: '',
-    honesty: '',
-    responsibility: '',
-    creativity: '',
-    sports: ''
-  });
-  const [submittingPsychomotorSkills, setSubmittingPsychomotorSkills] = useState(false);
-
-  // Logout
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     navigate('/login');
   };
 
-  // Fetch teacher info, students, subjects, sessions
   useEffect(() => {
     if (teacherUser) {
       setTeacherInfo(teacherUser);
       setLoading(false);
-      fetchClassStudents();
-      fetchSubjects();
-      fetchSessions();
+      if (teacherUser.class) {
+        fetchClassStudents(teacherUser.class);
+        fetchSubjects(teacherUser.class);
+      }
     } else if (!token) {
       navigate('/login');
       setLoading(false);
     }
-    // eslint-disable-next-line
   }, [teacherUser, token, navigate]);
 
-  // Fetch sessions
-  const fetchSessions = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/sessions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setAvailableSessions(data.sessions || []);
-      // Set default sessionId and sessionName
-      if (data.sessions && data.sessions.length > 0) {
-        setSessionId(data.sessions[0].id);
-        setSessionName(data.sessions[0].name);
-        setBulkSessionId(data.sessions[0].id);
-      }
-    } catch (error) {
-      setAvailableSessions([]);
-    }
-  };
-
-  // Fetch subjects
-  const fetchSubjects = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/teacher/subjects`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) navigate('/login');
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setSubjects(data.subjects || []);
-    } catch (error) {
-      setSubjects([]);
-    }
-  };
-
-  // Fetch students
-  const fetchClassStudents = async () => {
+  const fetchClassStudents = async (teacherClass) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/teacher/students`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`${API_BASE_URL}/teacher/students?class=${encodeURIComponent(teacherClass)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
       });
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) navigate('/login');
+        if (response.status === 401 || response.status === 403) {
+          navigate('/login');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       setClassStudents(data.students || []);
     } catch (error) {
+      console.error("Failed to fetch students:", error);
       setClassStudents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch class overall results
-  const fetchClassOverallResults = async () => {
-    if (!teacherInfo?.class || !selectedTerm || !sessionId) {
-      alert('Please select both term and session to view class results');
-      return;
-    }
-    setFetchingClassResults(true);
+  const fetchSubjects = async (teacherClass) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${sessionId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+      const response = await fetch(`${API_BASE_URL}/teacher/subjects?class=${encodeURIComponent(teacherClass)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
         }
-      );
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          navigate('/login');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      setClassOverallResults(data);
+      setSubjects(data.subjects || []);
     } catch (error) {
-      alert(`Failed to fetch class results: ${error.message}`);
-    } finally {
-      setFetchingClassResults(false);
+      console.error("Failed to fetch subjects:", error);
+      setSubjects([]);
     }
   };
 
-  // Bulk upload
-  const handleBulkScoreChange = (studentId, field, value) => {
-    setBulkResults(prev => {
-      const existing = prev.find(r => r.student_id === studentId);
-      if (existing) {
-        return prev.map(r =>
-          r.student_id === studentId ? { ...r, [field]: value } : r
-        );
-      } else {
-        return [...prev, {
-          student_id: studentId,
-          pt1: field === 'pt1' ? value : '',
-          pt2: field === 'pt2' ? value : '',
-          pt3: field === 'pt3' ? value : '',
-          exam: field === 'exam' ? value : ''
-        }];
+const fetchClassOverallResults = async () => {
+  if (!teacherInfo?.class || !selectedTerm || !session) {
+    alert('Please select both term and session to view class results');
+    return;
+  }
+  
+  setFetchingClassResults(true);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/teacher/class-overall-results?class=${encodeURIComponent(teacherInfo.class)}&term=${selectedTerm}&session_id=${session}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    setClassOverallResults(data);
+  } catch (error) {
+    console.error('Error fetching class overall results:', error);
+    alert(`Failed to fetch class results: ${error.message}`);
+  } finally {
+    setFetchingClassResults(false);
+  }
+};
+
+useEffect(() => {
+  if (activeTab === 'class-results' && teacherInfo?.class) {
+    fetchClassOverallResults();
+  }
+}, [activeTab, selectedTerm, session, teacherInfo?.class]);
+
+const fetchAcademicResultForPrefill = async (studentId, subjectId, term, session) => {
+  if (!studentId || !subjectId || !term || !session) {
+    return;
+  }
+  setPrefilling(true);
+  try {
+    const url = `${API_BASE_URL}/teacher/result/${encodeURIComponent(studentId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch academic result for prefill:", error);
+    return null;
+  } finally {
+    setPrefilling(false);
+  }
+};
+
+const fetchPsychomotorForPrefill = async (studentId, term, session) => {
+  if (!studentId || !term || !session) {
+    return;
+  }
+  setPrefilling(true);
+  try {
+    const url = `${API_BASE_URL}/teacher/psychomotor/${encodeURIComponent(studentId)}/${encodeURIComponent(term)}/${encodeURIComponent(session)}`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch psychomotor result for prefill:", error);
+    return null;
+  } finally {
+    setPrefilling(false);
+  }
+};
+
+useEffect(() => {
+  if (activeTab === 'upload') {
+    setPt1(''); setPt2(''); setPt3(''); setExam('');
+    setAttendance(''); setPunctuality(''); setNeatness('');
+    setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
+    setDaysOpened(''); setDaysPresent('');
+
+    if (selectedStudent && selectedSubject && selectedTerm && session) {
+      fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session)
+        .then(data => {
+          if (data && data.result) {
+            setPt1(data.result.pt1 !== undefined ? data.result.pt1.toString() : '');
+            setPt2(data.result.pt2 !== undefined ? data.result.pt2.toString() : '');
+            setPt3(data.result.pt3 !== undefined ? data.result.pt3.toString() : '');
+            setExam(data.result.exam !== undefined ? data.result.exam.toString() : '');
+          }
+        });
+    }
+
+    if (selectedStudent && selectedTerm && session) {
+      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+        .then(data => {
+          if (data) {
+            if (data.psychomotor) {
+              setAttendance(data.psychomotor.attendance || '');
+              setPunctuality(data.psychomotor.punctuality || '');
+              setNeatness(data.psychomotor.neatness || '');
+              setHonesty(data.psychomotor.honesty || '');
+              setResponsibility(data.psychomotor.responsibility || '');
+              setCreativity(data.psychomotor.creativity || '');
+              setSports(data.psychomotor.sports || '');
+            }
+            if (data.days_opened !== undefined && data.days_present !== undefined) {
+              setDaysOpened(data.days_opened.toString());
+              setDaysPresent(data.days_present.toString());
+            }
+          }
+        });
+    }
+  }
+}, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
+
+useEffect(() => {
+  if (activeTab === 'attendance') {
+    setDaysOpened('');
+    setDaysPresent('');
+    setAttendanceSuccess(null);
+
+    if (selectedStudent && selectedTerm && session) {
+      fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
+        .then(data => {
+          if (data && data.days_opened !== undefined && data.days_present !== undefined) {
+            setDaysOpened(data.days_opened.toString());
+            setDaysPresent(data.days_present.toString());
+          }
+        });
+    }
+  }
+}, [activeTab, selectedStudent, selectedTerm, session, token]);
+
+const fetchStudentResults = async (studentId, term, session) => {
+  setFetchingResults(true);
+  setResults(null);
+  
+  try {
+    // 1. Input validation (more robust than before)
+    if (!studentId || !studentId.trim()) {
+      throw new Error('Missing student ID');
+    }
+    if (!['1st', '2nd', '3rd'].includes(term)) {
+      throw new Error('Invalid term selected');
+    }
+    if (!session || !session.trim()) {
+      throw new Error('Missing academic session');
+    }
+    // 2. Build and log the URL for debugging
+    const encodedStudentId = encodeURIComponent(studentId);
+    const encodedTerm = encodeURIComponent(term);
+    const encodedSession = encodeURIComponent(session);
+    
+    const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${encodedTerm}/${encodedSession}`;
+    
+    console.log('🔍 Debug Info:', {
+      original: { studentId, term, session },
+      encoded: { encodedStudentId, encodedTerm, encodedSession },
+      finalUrl: url,
+      hasToken: !!token
+    });
+    
+    // 3. Make the API request
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
     });
-  };
-
-  const handleSubmitBulkResults = async () => {
-    if (!bulkSubject || !bulkTerm || !bulkSessionId) {
-      alert('Please select subject, term and session');
-      return;
+    console.log('📡 Response Info:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+    
+    // 4. Handle response
+    const responseText = await response.text();
+    console.log('📄 Response Text Preview:', responseText.substring(0, 500));
+    
+    // Check for HTML error pages
+    if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
+      console.error('🚨 Server returned HTML error page:', responseText);
+      throw new Error('Server returned an error page - check server logs');
     }
-    // Group results by student for the API
-    const academicResults = classStudents.map(student => {
-      const result = bulkResults.find(r => r.student_id === student.student_id) || {};
-      return {
-        student_id: student.student_id,
-        term: bulkTerm,
-        session_id: bulkSessionId,
-        results: [{
-          subject_id: bulkSubject,
-          pt1: result.pt1 || null,
-          pt2: result.pt2 || null,
-          pt3: result.pt3 || null,
-          exam: result.exam || null
-        }]
-      };
-    }).filter(r => r.results.some(x => x.pt1 || x.pt2 || x.pt3 || x.exam));
-
-    if (academicResults.length === 0) {
-      alert('No results to upload');
-      return;
-    }
-
-    setIsSubmittingBulk(true);
+    let data;
     try {
-      const response = await fetch(`${API_BASE_URL}/teacher/results/academic-bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ academicResults })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to upload bulk results');
+      data = JSON.parse(responseText);
+      console.log('✅ Parsed Response Data:', data);
+      
+      // 🆕 NEW: Log position information for debugging
+      if (data?.overallPerformance?.position) {
+        console.log('🏆 Position Info:', {
+          position: data.overallPerformance.position,
+          studentName: data.student?.full_name,
+          class: data.student?.class,
+          term: data.term,
+          session: data.session
+        });
       }
-
-      const data = await response.json();
-      alert(`Successfully uploaded ${data.uploaded.length} results`);
-    } catch (error) {
-      alert(`Error: ${error.message}`);
-    } finally {
-      setIsSubmittingBulk(false);
+      
+    } catch (parseError) {
+      console.error('❌ Failed to parse response:', {
+        status: response.status,
+        parseError: parseError.message,
+        response: responseText.substring(0, 200)
+      });
+      throw new Error('Invalid server response format');
     }
-  };
+    
+    // Handle specific error cases
+    if (!response.ok) {
+      console.error('❌ Request failed:', {
+        status: response.status,
+        data: data
+      });
+      
+      if (response.status === 404) {
+        throw new Error(`Student "${studentId}" not found in records`);
+      }
+      if (response.status === 500) {
+        throw new Error(`Server error: ${data.message || data.error || 'Internal server error'}`);
+      }
+      throw new Error(data.message || `Request failed with status ${response.status}`);
+    }
+    
+    // 5. Update state (maintaining your existing structure)
+    console.log('✅ Setting results successfully');
+    
+    // 🆕 NEW: Enhanced success message with position info
+    if (data?.overallPerformance?.position && data.overallPerformance.position !== 'N/A') {
+      const [pos, total] = data.overallPerformance.position.split('/');
+      const positionSuffix = getPositionSuffix(parseInt(pos));
+      console.log(`🎯 ${data.student?.full_name} is ranked ${positionSuffix} out of ${total} students in ${data.student?.class}`);
+    }
+    
+    setResults(data);
+    setSelectedStudent(studentId);
+    setActiveTab('results');
+    return data;
+    
+  } catch (error) {
+    console.error('💥 Error in fetchStudentResults:', {
+      studentId,
+      term,
+      session,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Enhanced error messages
+    let userMessage = error.message;
+    if (error.message.includes('not found')) {
+      userMessage = `Student "${studentId}" not found in system records`;
+    } else if (error.message.includes('Unauthorized') || error.message.includes('your own class')) {
+      userMessage = 'You can only view results for students in your assigned class';
+    } else if (error.message.includes('Server error')) {
+      userMessage = 'Server is experiencing issues. Please try again or contact support.';
+    }
+    
+    alert(`Error: ${userMessage}`);
+    setResults(null);
+    throw error;
+    
+  } finally {
+    setFetchingResults(false);
+  }
+};
 
-  // Add subject
-  const handleAddSubject = async (e) => {
+// 🆕 NEW: Helper function to get position suffix (add this outside your component or in utils)
+const getPositionSuffix = (position) => {
+  const num = parseInt(position);
+  if (num % 10 === 1 && num % 100 !== 11) return `${num}st`;
+  if (num % 10 === 2 && num % 100 !== 12) return `${num}nd`;
+  if (num % 10 === 3 && num % 100 !== 13) return `${num}rd`;
+  return `${num}th`;
+};  
+  const handleSubmitResults = async (e) => {
     e.preventDefault();
-    if (!newSubject.trim()) {
-      alert('Please enter a subject name');
+    if (!selectedStudent) {
+      alert('Please select a student');
       return;
     }
-    setAddingSubject(true);
+    if (!selectedSubject) {
+      alert('Please select a subject');
+      return;
+    }
+    if (parseInt(pt1) > 30 || parseInt(pt2) > 30 || parseInt(pt3) > 30) {
+      alert('PT scores cannot exceed 30 marks each');
+      return;
+    }
+    if (parseInt(exam) > 70) {
+      alert('Exam score cannot exceed 70 marks');
+      return;
+    }
+
+    if ([pt1, pt2, pt3, exam].some(score => score === '' || isNaN(parseInt(score)))) {
+      alert('Please enter valid numeric scores for all PTs and Exam.');
+      return;
+    }
+
+    if ([attendance, punctuality, neatness, honesty, responsibility, creativity, sports].some(skill => skill === '')) {
+      alert('Please select a grade for all psychomotor skills.');
+      return;
+    }
+
+    setSubmittingResults(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/teacher/subjects`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/results`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ subject_name: newSubject.trim() })
+        credentials: 'include',
+        body: JSON.stringify({
+          student_id: selectedStudent,
+          term: selectedTerm,
+          session,
+          subject_id: selectedSubject,
+          pt1: parseInt(pt1),
+          pt2: parseInt(pt2),
+          pt3: parseInt(pt3),
+          exam: parseInt(exam),
+          attendance,
+          punctuality,
+          neatness,
+          honesty,
+          responsibility,
+          creativity,
+          sports
+        })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to add subject`);
+        throw new Error(errorData.message || `Failed to upload results`);
       }
 
-      alert('Subject added successfully!');
-      setNewSubject('');
-      await fetchSubjects();
+      alert('Results uploaded successfully!');
+      if (selectedStudent && selectedSubject && selectedTerm && session) {
+        fetchAcademicResultForPrefill(selectedStudent, selectedSubject, selectedTerm, session);
+      }
+      if (selectedStudent && selectedTerm && session) {
+        fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session);
+      }
     } catch (error) {
-      alert(`Error adding subject: ${error.message}`);
+      alert(`Error uploading results: ${error.message}`);
     } finally {
-      setAddingSubject(false);
+      setSubmittingResults(false);
     }
   };
 
-  // Attendance
+  const resetUploadForm = () => {
+    setSelectedStudent('');
+    setSelectedSubject('');
+    setPt1('');
+    setPt2('');
+    setPt3('');
+    setExam('');
+    setAttendance('');
+    setPunctuality('');
+    setNeatness('');
+    setHonesty('');
+    setResponsibility('');
+    setCreativity('');
+    setSports('');
+  };
+
   const handleSubmitAttendance = async (e) => {
     e.preventDefault();
     if (!selectedStudent) {
@@ -307,7 +532,7 @@ function TeacherDashboard({ teacherUser, token }) {
         body: JSON.stringify({
           student_id: selectedStudent,
           term: selectedTerm,
-          session: sessionName,
+          session,
           days_opened: parseInt(daysOpened),
           days_present: parseInt(daysPresent)
         })
@@ -333,80 +558,41 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
-  // Psychomotor
-  const handleSubmitPsychomotorSkills = async (e) => {
+  const handleAddSubject = async (e) => {
     e.preventDefault();
-    if (!psychomotorForm.student_id || !psychomotorForm.term || !psychomotorForm.session_id) {
-      alert('Please select a student, term, and session for psychomotor skills.');
+    if (!newSubject.trim()) {
+      alert('Please enter a subject name');
       return;
     }
-    setSubmittingPsychomotorSkills(true);
+    setAddingSubject(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/teacher/psychomotor/update-student`, {
+      const response = await fetch(`${API_BASE_URL}/teacher/subjects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(psychomotorForm)
+        credentials: 'include',
+        body: JSON.stringify({ subject_name: newSubject.trim(), class_name: teacherInfo?.class })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to upload psychomotor skills`);
+        throw new Error(errorData.message || `Failed to add subject`);
       }
 
-      alert('Psychomotor Skills uploaded successfully!');
+      alert('Subject added successfully!');
+      setNewSubject('');
+      if (teacherInfo?.class) {
+        await fetchSubjects(teacherInfo.class);
+      }
     } catch (error) {
-      alert(`Error uploading psychomotor skills: ${error.message}`);
+      alert(`Error adding subject: ${error.message}`);
     } finally {
-      setSubmittingPsychomotorSkills(false);
+      setAddingSubject(false);
     }
   };
 
-  // Student results
-  const fetchStudentResults = async (studentId, term, session) => {
-    setFetchingResults(true);
-    setResults(null);
-    try {
-      if (!studentId || !term || !session) {
-        alert('Cannot load results. Missing student, term, or session.');
-        return;
-      }
-      const encodedStudentId = encodeURIComponent(studentId);
-      const encodedSession = encodeURIComponent(session);
-      const url = `${API_BASE_URL}/teacher/student-results/${encodedStudentId}/${term}/${encodedSession}`;
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}`);
-      }
-      setResults(data);
-      setSelectedStudent(studentId);
-      setActiveTab('results');
-    } catch (error) {
-      alert(`Error loading results: ${error.message}`);
-      setResults(null);
-    } finally {
-      setFetchingResults(false);
-    }
-  };
-
-  // Session select handler
-  const handleSessionChange = (e) => {
-    const newSessionId = e.target.value;
-    setSessionId(newSessionId);
-    const sessionObj = availableSessions.find(s => s.id === newSessionId);
-    setSessionName(sessionObj ? sessionObj.name : '');
-    setBulkSessionId(newSessionId);
-  };
-
-  // Filtered students for search
   const filteredStudents = classStudents.filter(student =>
     student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -455,14 +641,11 @@ function TeacherDashboard({ teacherUser, token }) {
             <li className={activeTab === 'subjects' ? 'active' : ''} onClick={() => setActiveTab('subjects')}>
               <FaBook className="menu-icon" /> <span className="menu-text">Class Subjects</span>
             </li>
-            <li className={activeTab === 'bulk-results' ? 'active' : ''} onClick={() => setActiveTab('bulk-results')}>
-              <FaUpload className="menu-icon" /> <span className="menu-text">Bulk Results</span>
-            </li>
-            <li className={activeTab === 'psychomotor' ? 'active' : ''} onClick={() => setActiveTab('psychomotor')}>
-              <FaUserGraduate className="menu-icon" /> <span className="menu-text">Psychomotor</span>
+            <li className={activeTab === 'upload' ? 'active' : ''} onClick={() => setActiveTab('upload')}>
+              <FaUpload className="menu-icon" /> <span className="menu-text">Upload Results</span>
             </li>
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
-              <FaCalendarAlt className="menu-icon" /> <span className="menu-text">Attendance</span>
+              <FaCalendarAlt className="menu-icon" /> <span className="menu-text">Record Attendance</span>
             </li>
             <li className={activeTab === 'add-subject' ? 'active' : ''} onClick={() => setActiveTab('add-subject')}>
               <FaPlus className="menu-icon" /> <span className="menu-text">Add Subject</span>
@@ -511,7 +694,7 @@ function TeacherDashboard({ teacherUser, token }) {
                       </div>
                       <div className="student-actions">
                         <button
-                          onClick={() => fetchStudentResults(student.student_id || student.id, selectedTerm, sessionName)}
+                          onClick={() => fetchStudentResults(student.student_id || student.id, selectedTerm, session)}
                           className="btn btn-primary btn-view-results"
                           disabled={fetchingResults}
                         >
@@ -553,6 +736,7 @@ function TeacherDashboard({ teacherUser, token }) {
                       <tr>
                         <th>Subject Name</th>
                         <th>Date Added</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -560,6 +744,17 @@ function TeacherDashboard({ teacherUser, token }) {
                         <tr key={subject.id}>
                           <td>{subject.name}</td>
                           <td>{new Date(subject.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <button
+                              onClick={() => {
+                                setSelectedSubject(subject.id);
+                                setActiveTab('upload');
+                              }}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              <FaUpload /> Upload Results
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -579,143 +774,26 @@ function TeacherDashboard({ teacherUser, token }) {
             </section>
           )}
 
-          {activeTab === 'bulk-results' && (
-            <section className="dashboard-section bulk-results-section">
+          {activeTab === 'upload' && (
+            <section className="dashboard-section upload-results-section">
               <div className="section-header">
-                <h2 className="section-title"><FaUpload /> Bulk Upload Results</h2>
+                <h2 className="section-title"><FaUpload /> Upload Student Results</h2>
+                <button
+                  onClick={() => setActiveTab('subjects')}
+                  className="btn btn-back"
+                >
+                  <FaArrowLeft /> Back to Subjects
+                </button>
               </div>
 
-              <div className="bulk-selectors">
-                <div className="form-group">
-                  <label>Subject:</label>
-                  <select
-                    value={bulkSubject}
-                    onChange={(e) => setBulkSubject(e.target.value)}
-                    required
-                  >
-                    <option value="">Select Subject</option>
-                    {subjects.map(subject => (
-                      <option key={subject.id} value={subject.id}>{subject.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Term:</label>
-                  <select
-                    value={bulkTerm}
-                    onChange={(e) => setBulkTerm(e.target.value)}
-                    required
-                  >
-                    <option value="1st">First Term</option>
-                    <option value="2nd">Second Term</option>
-                    <option value="3rd">Third Term</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Session:</label>
-                  <select
-                    value={bulkSessionId}
-                    onChange={(e) => setBulkSessionId(e.target.value)}
-                    required
-                  >
-                    {Array.isArray(availableSessions) && availableSessions.map(session => (
-                      <option key={session.id} value={session.id}>{session.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {bulkSubject && bulkTerm && bulkSessionId && (
-                <div className="bulk-results-table-container">
-                  <div className="table-responsive">
-                    <table className="bulk-results-table">
-                      <thead>
-                        <tr>
-                          <th>Student</th>
-                          <th>PT1 (30)</th>
-                          <th>PT2 (30)</th>
-                          <th>PT3 (30)</th>
-                          <th>Exam (70)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {classStudents.map(student => {
-                          const studentResult = bulkResults.find(r => r.student_id === student.student_id) || {};
-                          return (
-                            <tr key={student.id}>
-                              <td>{student.full_name}</td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="30"
-                                  value={studentResult.pt1 || ''}
-                                  onChange={(e) => handleBulkScoreChange(student.student_id, 'pt1', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="30"
-                                  value={studentResult.pt2 || ''}
-                                  onChange={(e) => handleBulkScoreChange(student.student_id, 'pt2', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="30"
-                                  value={studentResult.pt3 || ''}
-                                  onChange={(e) => handleBulkScoreChange(student.student_id, 'pt3', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="70"
-                                  value={studentResult.exam || ''}
-                                  onChange={(e) => handleBulkScoreChange(student.student_id, 'exam', e.target.value)}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bulk-actions">
-                    <button
-                      onClick={handleSubmitBulkResults}
-                      disabled={isSubmittingBulk || bulkResults.length === 0}
-                      className="btn btn-primary"
-                    >
-                      {isSubmittingBulk ? <FaSpinner className="spinner-icon" /> : 'Upload Bulk Results'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          {activeTab === 'psychomotor' && (
-            <section className="dashboard-section psychomotor-section">
-              <div className="section-header">
-                <h2 className="section-title"><FaUserGraduate /> Psychomotor Skills Assessment</h2>
-              </div>
-
-              <form onSubmit={handleSubmitPsychomotorSkills} className="data-form psychomotor-form">
-                <div className="common-selectors">
+              <form onSubmit={handleSubmitResults} className="data-form upload-form">
+                <div className="form-grid-2">
                   <div className="form-group">
-                    <label>Select Student:</label>
+                    <label htmlFor="select-student">Select Student: <span className="required">*</span></label>
                     <select
-                      value={psychomotorForm.student_id}
-                      onChange={e => setPsychomotorForm(f => ({ ...f, student_id: e.target.value }))}
+                      id="select-student"
+                      value={selectedStudent}
+                      onChange={(e) => setSelectedStudent(e.target.value)}
                       required
                     >
                       <option value="">Choose a student...</option>
@@ -726,11 +804,37 @@ function TeacherDashboard({ teacherUser, token }) {
                       ))}
                     </select>
                   </div>
+
                   <div className="form-group">
-                    <label>Term:</label>
+                    <label htmlFor="select-subject">Select Subject: <span className="required">*</span></label>
                     <select
-                      value={psychomotorForm.term}
-                      onChange={e => setPsychomotorForm(f => ({ ...f, term: e.target.value }))}
+                      id="select-subject"
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      required
+                    >
+                      <option value="">Choose a subject...</option>
+                      {subjects.map(subject => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                    {subjects.length === 0 && (
+                      <p className="form-hint">
+                        No subjects available. <button type="button" onClick={() => setActiveTab('add-subject')} className="link-btn">Add subjects first</button>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label htmlFor="select-term">Term: <span className="required">*</span></label>
+                    <select
+                      id="select-term"
+                      value={selectedTerm}
+                      onChange={(e) => setSelectedTerm(e.target.value)}
                       required
                     >
                       <option value="1st">First Term</option>
@@ -738,33 +842,110 @@ function TeacherDashboard({ teacherUser, token }) {
                       <option value="3rd">Third Term</option>
                     </select>
                   </div>
+
                   <div className="form-group">
-                    <label>Session:</label>
-                    <select
-                      value={psychomotorForm.session_id}
-                      onChange={e => setPsychomotorForm(f => ({ ...f, session_id: e.target.value }))}
+                    <label htmlFor="academic-session">Academic Session: <span className="required">*</span></label>
+                    <input
+                      type="text"
+                      id="academic-session"
+                      value={session}
+                      onChange={(e) => setSession(e.target.value)}
+                      placeholder="e.g., 2023/2024"
                       required
-                    >
-                      <option value="">Session</option>
-                      {availableSessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    />
                   </div>
                 </div>
+
+                <h3 className="form-section-heading">Academic Scores {prefilling && selectedStudent && selectedSubject ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
+
+                <div className="form-grid-4">
+                  <div className="form-group">
+                    <label htmlFor="pt1">PT 1 Score: <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="pt1"
+                      min="0"
+                      max="30"
+                      value={pt1}
+                      onChange={(e) => setPt1(e.target.value)}
+                      placeholder="Max: 30"
+                      required
+                    />
+                    <small className="input-hint">Out of 30 marks</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="pt2">PT 2 Score: <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="pt2"
+                      min="0"
+                      max="30"
+                      value={pt2}
+                      onChange={(e) => setPt2(e.target.value)}
+                      placeholder="Max: 30"
+                      required
+                    />
+                    <small className="input-hint">Out of 30 marks</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="pt3">PT 3 Score: <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="pt3"
+                      min="0"
+                      max="30"
+                      value={pt3}
+                      onChange={(e) => setPt3(e.target.value)}
+                      placeholder="Max: 30"
+                      required
+                    />
+                    <small className="input-hint">Out of 30 marks</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="exam-score">Exam Score: <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="exam-score"
+                      min="0"
+                      max="70"
+                      value={exam}
+                      onChange={(e) => setExam(e.target.value)}
+                      placeholder="Max: 70"
+                      required
+                    />
+                    <small className="input-hint">Out of 70 marks</small>
+                  </div>
+                </div>
+
+                {pt1 !== '' && pt2 !== '' && pt3 !== '' && exam !== '' && (
+                  <div className="score-preview">
+                    <h4>Score Preview:</h4>
+                    <p>Average PT: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3)}</p>
+                    <p>Total Score: {Math.round((parseInt(pt1 || 0) + parseInt(pt2 || 0) + parseInt(pt3 || 0)) / 3 + parseInt(exam || 0))}/100</p>
+                  </div>
+                )}
+
+                <h3 className="form-section-heading">Psychomotor Skills Assessment {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
+
                 <div className="form-grid-3">
                   {[
-                    { key: 'attendance', label: 'Attendance' },
-                    { key: 'punctuality', label: 'Punctuality' },
-                    { key: 'neatness', label: 'Neatness' },
-                    { key: 'honesty', label: 'Honesty' },
-                    { key: 'responsibility', label: 'Responsibility' },
-                    { key: 'creativity', label: 'Creativity' },
-                    { key: 'sports', label: 'Sports/Physical Activity' }
-                  ].map(skill => (
+                    { key: 'attendance', label: 'Attendance', value: attendance, setter: setAttendance },
+                    { key: 'punctuality', label: 'Punctuality', value: punctuality, setter: setPunctuality },
+                    { key: 'neatness', label: 'Neatness', value: neatness, setter: setNeatness },
+                    { key: 'honesty', label: 'Honesty', value: honesty, setter: setHonesty },
+                    { key: 'responsibility', label: 'Responsibility', value: responsibility, setter: setResponsibility },
+                    { key: 'creativity', label: 'Creativity', value: creativity, setter: setCreativity },
+                    { key: 'sports', label: 'Sports/Physical Activity', value: sports, setter: setSports }
+                  ].map((skill) => (
                     <div key={skill.key} className="form-group">
-                      <label>{skill.label}:</label>
+                      <label htmlFor={skill.key}>{skill.label}: <span className="required">*</span></label>
                       <select
-                        value={psychomotorForm[skill.key]}
-                        onChange={e => setPsychomotorForm(f => ({ ...f, [skill.key]: e.target.value }))}
+                        id={skill.key}
+                        value={skill.value}
+                        onChange={(e) => skill.setter(e.target.value)}
                         required
                       >
                         <option value="">Select grade</option>
@@ -778,13 +959,22 @@ function TeacherDashboard({ teacherUser, token }) {
                     </div>
                   ))}
                 </div>
+
                 <div className="form-actions">
+                  <button
+                    type="button"
+                    onClick={resetUploadForm}
+                    className="btn btn-secondary"
+                    disabled={submittingResults || prefilling}
+                  >
+                    Reset Form
+                  </button>
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={submittingPsychomotorSkills}
+                    disabled={submittingResults || prefilling}
                   >
-                    {submittingPsychomotorSkills ? <FaSpinner className="spinner-icon" /> : 'Save Psychomotor Skills'}
+                    {submittingResults ? <FaSpinner className="spinner-icon" /> : 'Upload Results'}
                   </button>
                 </div>
               </form>
@@ -793,14 +983,15 @@ function TeacherDashboard({ teacherUser, token }) {
 
           {activeTab === 'attendance' && (
             <section className="dashboard-section record-attendance-section">
-              <h2 className="section-title"><FaCalendarAlt /> Record Student Attendance</h2>
+              <h2 className="section-title"><FaCalendarAlt /> Record Student Attendance {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h2>
               <form onSubmit={handleSubmitAttendance} className="data-form attendance-form">
                 <div className="form-grid-1">
                   <div className="form-group">
-                    <label>Select Student:</label>
+                    <label htmlFor="attendance-student">Select Student: <span className="required">*</span></label>
                     <select
+                      id="attendance-student"
                       value={selectedStudent}
-                      onChange={e => setSelectedStudent(e.target.value)}
+                      onChange={(e) => setSelectedStudent(e.target.value)}
                       required
                     >
                       <option value="">Choose a student...</option>
@@ -812,12 +1003,14 @@ function TeacherDashboard({ teacherUser, token }) {
                     </select>
                   </div>
                 </div>
+
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label>Term:</label>
+                    <label htmlFor="attendance-term">Term: <span className="required">*</span></label>
                     <select
+                      id="attendance-term"
                       value={selectedTerm}
-                      onChange={e => setSelectedTerm(e.target.value)}
+                      onChange={(e) => setSelectedTerm(e.target.value)}
                       required
                     >
                       <option value="1st">First Term</option>
@@ -825,66 +1018,79 @@ function TeacherDashboard({ teacherUser, token }) {
                       <option value="3rd">Third Term</option>
                     </select>
                   </div>
+
                   <div className="form-group">
-                    <label>Session:</label>
-                    <select
-                      value={sessionId}
-                      onChange={handleSessionChange}
+                    <label htmlFor="attendance-session">Academic Session: <span className="required">*</span></label>
+                    <input
+                      type="text"
+                      id="attendance-session"
+                      value={session}
+                      onChange={(e) => setSession(e.target.value)}
+                      placeholder="e.g., 2023/2024"
                       required
-                      disabled={loading}
-                    >
-                      {availableSessions.length > 0 ? (
-                        availableSessions.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">Loading sessions...</option>
-                      )}
-                    </select>
+                    />
                   </div>
                 </div>
+
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label>Days School Opened:</label>
+                    <label htmlFor="days-opened">Days School Opened: <span className="required">*</span></label>
                     <input
                       type="number"
+                      id="days-opened"
                       min="1"
                       value={daysOpened}
-                      onChange={e => setDaysOpened(e.target.value)}
+                      onChange={(e) => setDaysOpened(e.target.value)}
                       placeholder="Total school days"
                       required
                     />
                   </div>
+
                   <div className="form-group">
-                    <label>Days Present:</label>
+                    <label htmlFor="days-present">Days Present: <span className="required">*</span></label>
                     <input
                       type="number"
+                      id="days-present"
                       min="0"
                       value={daysPresent}
-                      onChange={e => setDaysPresent(e.target.value)}
+                      onChange={(e) => setDaysPresent(e.target.value)}
                       placeholder="Days student attended"
                       required
                     />
                   </div>
                 </div>
+
                 {daysOpened !== '' && daysPresent !== '' && parseInt(daysOpened) > 0 && (
                   <div className="attendance-preview">
                     <h4>Attendance Rate:</h4>
                     <p>{Math.round((parseInt(daysPresent || 0) / parseInt(daysOpened || 1)) * 100)}% ({daysPresent}/{daysOpened} days)</p>
                   </div>
                 )}
+
                 {attendanceSuccess && (
                   <div className="alert alert-success">
                     {attendanceSuccess}
                   </div>
                 )}
+
                 <div className="form-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudent('');
+                      setDaysOpened('');
+                      setDaysPresent('');
+                      setAttendanceSuccess(null);
+                    }}
+                    className="btn btn-secondary"
+                    disabled={submittingAttendance || prefilling}
+                  >
+                    Reset Form
+                  </button>
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={submittingAttendance}
+                    disabled={submittingAttendance || prefilling}
                   >
                     {submittingAttendance ? <FaSpinner className="spinner-icon" /> : 'Record Attendance'}
                   </button>
@@ -904,18 +1110,22 @@ function TeacherDashboard({ teacherUser, token }) {
                   <FaArrowLeft /> Back to Subjects
                 </button>
               </div>
+
               <div className="add-subject-content">
                 <form onSubmit={handleAddSubject} className="data-form add-subject-form">
                   <div className="form-group">
-                    <label>Subject Name:</label>
+                    <label htmlFor="new-subject-name">Subject Name: <span className="required">*</span></label>
                     <input
                       type="text"
+                      id="new-subject-name"
                       value={newSubject}
-                      onChange={e => setNewSubject(e.target.value)}
+                      onChange={(e) => setNewSubject(e.target.value)}
                       placeholder="e.g., Mathematics, English Language, Biology"
                       required
                     />
+                    <small className="input-hint">Enter the name of the subject you want to add to {teacherInfo.class}</small>
                   </div>
+
                   <div className="form-actions">
                     <button
                       type="submit"
@@ -926,6 +1136,19 @@ function TeacherDashboard({ teacherUser, token }) {
                     </button>
                   </div>
                 </form>
+
+                {subjects.length > 0 && (
+                  <div className="existing-subjects-card">
+                    <h3 className="card-title">Current Subjects for {teacherInfo.class}:</h3>
+                    <div className="subjects-tags-container">
+                      {subjects.map(subject => (
+                        <span key={subject.id} className="subject-tag">
+                          {subject.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -941,10 +1164,11 @@ function TeacherDashboard({ teacherUser, token }) {
                   <FaArrowLeft /> Back to Students
                 </button>
               </div>
+
               {fetchingResults ? (
                 <div className="loading-results">
                   <FaSpinner className="spinner-icon" />
-                  <p>Loading results...</p>
+                  <p>Loading results for {classStudents.find(s => (s.student_id || s.id) === selectedStudent)?.full_name || 'selected student'}...</p>
                 </div>
               ) : results ? (
                 <div className="results-display-container">
@@ -952,6 +1176,7 @@ function TeacherDashboard({ teacherUser, token }) {
                     <h3 className="student-name">{results.student?.full_name}</h3>
                     <p className="student-details">Class: {results.student?.class} | Term: {results.term} | Session: {results.session}</p>
                   </div>
+
                   {results.academicResults && results.academicResults.length > 0 ? (
                     <div className="results-table-card">
                       <h4 className="card-title">Academic Performance</h4>
@@ -966,6 +1191,10 @@ function TeacherDashboard({ teacherUser, token }) {
                               <th>Avg PT</th>
                               <th>Exam</th>
                               <th>Total</th>
+                              {results.term !== '1st' && <th>1st Term Total</th>}
+                              {results.term === '3rd' && <th>2nd Term Total</th>}
+                              {results.term !== '1st' && <th>Cum. Avg</th>}
+                              <th>Class Avg</th>
                               <th>Grade</th>
                               <th>Remark</th>
                             </tr>
@@ -973,14 +1202,24 @@ function TeacherDashboard({ teacherUser, token }) {
                           <tbody>
                             {results.academicResults.map((result, index) => (
                               <tr key={index}>
-                                <td>{result.subject_name}</td>
+                                <td>{result.subject_name || result.subject}</td>
                                 <td>{result.pt1}</td>
                                 <td>{result.pt2}</td>
                                 <td>{result.pt3}</td>
                                 <td>{result.avg_pt !== undefined ? Math.round(result.avg_pt) : 'N/A'}</td>
                                 <td>{result.exam}</td>
                                 <td>{result.total_score}</td>
-                                <td>{result.grade}</td>
+                                {results.term !== '1st' && (
+                                  <td>{result.first_term_total_score !== null ? result.first_term_total_score : 'N/A'}</td>
+                                )}
+                                {results.term === '3rd' && (
+                                  <td>{result.second_term_total_score !== null ? result.second_term_total_score : 'N/A'}</td>
+                                )}
+                                {results.term !== '1st' && (
+                                    <td>{result.subject_cum_avg !== null ? result.subject_cum_avg : 'N/A'}</td>
+                                )}
+                                <td>N/A</td>
+                                <td className={`grade-cell grade-${result.grade ? result.grade.toLowerCase() : ''}`}>{result.grade}</td>
                                 <td>{result.remark}</td>
                               </tr>
                             ))}
@@ -991,6 +1230,75 @@ function TeacherDashboard({ teacherUser, token }) {
                   ) : (
                     <div className="empty-state">
                       <p>No academic results found for this student for {results.term} term, {results.session} session.</p>
+                      <button onClick={() => { setActiveTab('upload'); setSelectedStudent(results.student?.student_id || results.student?.id); }} className="btn btn-primary">
+                        Upload Results for {results.student?.full_name}
+                      </button>
+                    </div>
+                  )}
+
+                  {results.psychomotor && Object.keys(results.psychomotor).length > 0 && (
+                    <div className="results-table-card">
+                      <h4 className="card-title">Psychomotor Skills</h4>
+                      <div className="table-responsive">
+                        <table className="data-table psychomotor-table">
+                          <tbody>
+                            {Object.entries(results.psychomotor).map(([skill, value]) => (
+                              <tr key={skill}>
+                                <td className="skill-name">{skill.replace(/_/g, ' ')}</td>
+                                <td className="skill-grade">{value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {results.overallPerformance && (
+                    <div className="overall-performance-card">
+                      <h4 className="card-title">Overall Performance Summary</h4>
+                      <div className="performance-stats-grid">
+                        <div className="stat-item">
+                          <label className="stat-label">Total Score (Current Term):</label>
+                          <span className="stat-value">{results.overallPerformance.totalScored}/{results.overallPerformance.totalObtainable}</span>
+                        </div>
+                        <div className="stat-item">
+                          <label className="stat-label">Percentage (Current Term):</label>
+                          <span className="stat-value">{results.overallPerformance.percentage}%</span>
+                        </div>
+                        {results.term !== '1st' && results.overallPerformance.firstTermTotalScore !== null && (
+                            <div className="stat-item">
+                                <label className="stat-label">1st Term Total Score:</label>
+                                <span className="stat-value">{results.overallPerformance.firstTermTotalScore}</span>
+                            </div>
+                        )}
+                        {results.term === '3rd' && results.overallPerformance.secondTermTotalScore !== null && (
+                            <div className="stat-item">
+                                <label className="stat-label">2nd Term Total Score:</label>
+                                <span className="stat-value">{results.overallPerformance.secondTermTotalScore}</span>
+                            </div>
+                        )}
+                        {results.term !== '1st' && results.overallPerformance.cumulativeAverage !== null && (
+                            <div className="stat-item">
+                                <label className="stat-label">Cumulative Overall Avg:</label>
+                                <span className="stat-value">{results.overallPerformance.cumulativeAverage}%</span>
+                            </div>
+                        )}
+
+                        <div className="stat-item">
+                          <label className="stat-label">Position:</label>
+                          <span className="stat-value">{results.overallPerformance.position}</span>
+                        </div>
+                        <div className="stat-item">
+                          <label className="stat-label">Attendance:</label>
+                          <span className="stat-value">
+                            {results.attendance ?
+                              `${results.attendance.days_present}/${results.attendance.days_opened} days (${Math.round((results.attendance.days_present / results.attendance.days_opened) * 100)}%)` :
+                              'N/A'
+                            }
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1012,29 +1320,20 @@ function TeacherDashboard({ teacherUser, token }) {
                 <div className="results-controls">
                   <select
                     value={selectedTerm}
-                    onChange={e => setSelectedTerm(e.target.value)}
+                    onChange={(e) => setSelectedTerm(e.target.value)}
                     className="term-select"
                   >
                     <option value="1st">First Term</option>
                     <option value="2nd">Second Term</option>
                     <option value="3rd">Third Term</option>
                   </select>
-                  <select
-                    value={sessionId}
-                    onChange={handleSessionChange}
+                  <input
+                    type="text"
+                    value={session}
+                    onChange={(e) => setSession(e.target.value)}
+                    placeholder="Session (e.g., 2023/2024)"
                     className="session-input"
-                    disabled={loading}
-                  >
-                    {availableSessions.length > 0 ? (
-                      availableSessions.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">Loading sessions...</option>
-                    )}
-                  </select>
+                  />
                   <button
                     onClick={fetchClassOverallResults}
                     className="btn btn-primary"
@@ -1044,44 +1343,55 @@ function TeacherDashboard({ teacherUser, token }) {
                   </button>
                 </div>
               </div>
+
               {fetchingClassResults ? (
                 <div className="loading-state">
                   <FaSpinner className="spinner-icon" />
-                  <p>Loading class results for {selectedTerm} term...</p>
+                  <p>Loading class results for {selectedTerm} term, {session} session...</p>
                 </div>
               ) : classOverallResults ? (
                 <div className="class-results-container">
                   <div className="results-summary-card">
-                    <h3>Class: {classOverallResults.class}</h3>
-                    <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
-                    <p>Total Students: {classOverallResults.results.length}</p>
-                  </div>
+  <h3>Class: {classOverallResults.class}</h3>
+  <p>Term: {classOverallResults.term} | Session: {classOverallResults.session_id}</p>
+  <p>Total Students: {classOverallResults.results.length}</p>
+  <p>
+    Class Average: <strong>{classOverallResults.classAverage ? `${classOverallResults.classAverage}%` : 'N/A'}</strong>
+  </p>
+</div>
                   <div className="table-responsive">
                     <table className="data-table class-results-table">
-                      <thead>
-                        <tr>
-                          <th>Position</th>
-                          <th>Student Name</th>
-                          <th>Total Score</th>
-                          <th>Subjects</th>
-                          <th>Percentage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {classOverallResults.results.map((student, index) => (
-                          <tr key={student.id}>
-                            <td>{student.position}</td>
-                            <td>{student.full_name}</td>
-                            <td>{student.term_total_score}</td>
-                            <td>{student.subject_count}</td>
-                            <td>{student.percentage}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
+     <thead>
+  <tr>
+    <th>Position</th>
+    <th>Student Name</th>
+    <th>Total Score</th>
+    <th>Percentage</th>
+    <th>Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {classOverallResults.results.map((student, index) => (
+    <tr key={student.id}>
+      <td>{student.position}</td>
+      <td>{student.full_name}</td>
+      <td>{student.term_total_score}</td>
+      <td>{student.percentage ? `${student.percentage}%` : 'N/A'}</td>
+      <td>
+        <button
+          onClick={() => {
+            setSelectedStudent(student.id);
+            fetchStudentResults(student.id, selectedTerm, session);
+          }}
+          className="btn btn-secondary btn-sm"
+        >
+          View Details
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
                     </table>
-                  </div>
-                  <div className="class-average">
-                    <strong>Class Average:</strong> {classOverallResults.classAverage}
                   </div>
                 </div>
               ) : (

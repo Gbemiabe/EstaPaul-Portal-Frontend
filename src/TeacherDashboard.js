@@ -24,6 +24,9 @@ import './TeacherDashboard.css';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001/api";
 
 function TeacherDashboard({ teacherUser, token }) {
+  // --- DEBUGGING: Log component renders ---
+  console.log('TeacherDashboard component rendering...');
+
   const navigate = useNavigate();
   const [teacherInfo, setTeacherInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,12 +78,14 @@ function TeacherDashboard({ teacherUser, token }) {
   const [prefilling, setPrefilling] = useState(false); // For academic prefill (old) or psychomotor/attendance prefill
 
   const handleLogout = useCallback(() => {
+    console.log('handleLogout called'); // DEBUGGING
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     navigate('/login');
   }, [navigate]);
 
   const fetchClassStudents = useCallback(async (teacherClass) => {
+    console.log('fetchClassStudents called for class:', teacherClass); // DEBUGGING
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/teacher/students?class=${encodeURIComponent(teacherClass)}`, {
@@ -105,6 +110,7 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [token, handleLogout]);
 
   const fetchSubjects = useCallback(async (teacherClass) => {
+    console.log('fetchSubjects called for class:', teacherClass); // DEBUGGING
     try {
       const response = await fetch(`${API_BASE_URL}/teacher/subjects?class=${encodeURIComponent(teacherClass)}`, {
         headers: {
@@ -126,6 +132,7 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [token, handleLogout]);
 
   const fetchSessions = useCallback(async () => {
+    console.log('fetchSessions called'); // DEBUGGING
     try {
       const response = await fetch(`${API_BASE_URL}/sessions`, {
         headers: {
@@ -148,13 +155,14 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // NEW: Fetch all academic results for the class to prefill the bulk upload grid
   const prefillAllAcademicResults = useCallback(async () => {
+    console.log('prefillAllAcademicResults called with:', { class: teacherInfo?.class, selectedTerm, session }); // DEBUGGING
     if (!teacherInfo?.class || !selectedTerm || !session) {
       // Don't alert here, as this function will be called on mount/selector change
       return;
     }
     const selectedSessionObject = availableSessions.find(s => s.name === session);
     if (!selectedSessionObject) {
-      console.warn('Selected session not found for prefill.');
+      console.warn('Selected session not found for prefill. Session:', session); // DEBUGGING
       return;
     }
     const sessionId = selectedSessionObject.id;
@@ -219,6 +227,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
 
   const fetchClassOverallResults = useCallback(async () => {
+    console.log('fetchClassOverallResults called with:', { class: teacherInfo?.class, selectedTerm, session }); // DEBUGGING
     if (!teacherInfo?.class || !selectedTerm || !session) {
       alert('Please select both term and session to view class results');
       return;
@@ -259,6 +268,7 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [teacherInfo, selectedTerm, session, availableSessions, token, handleLogout]);
 
   const fetchStudentResults = useCallback(async (studentId, term, sessionId) => {
+    console.log('fetchStudentResults called for student:', studentId, 'term:', term, 'session:', sessionId); // DEBUGGING
     setFetchingResults(true);
     try {
         const response = await fetch(
@@ -286,6 +296,7 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [token, handleLogout]);
 
   const addSubject = useCallback(async () => {
+    console.log('addSubject called for:', newSubject); // DEBUGGING
     if (!newSubject.trim()) {
       alert('Subject name cannot be empty.');
       return;
@@ -321,6 +332,7 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [newSubject, teacherInfo, token, fetchSubjects, handleLogout]);
 
   const deleteSubject = useCallback(async (subjectId) => {
+    console.log('deleteSubject called for ID:', subjectId); // DEBUGGING
     if (!window.confirm('Are you sure you want to delete this subject? This action cannot be undone.')) {
       return;
     }
@@ -350,6 +362,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // NEW: Handle input changes in the academic data grid
   const handleAcademicScoreChange = useCallback((studentId, subjectId, scoreType, value) => {
+    console.log('handleAcademicScoreChange called for student:', studentId, 'subject:', subjectId, 'type:', scoreType, 'value:', value); // DEBUGGING
     setAcademicDataGrid(prevGrid =>
       prevGrid.map(studentRow =>
         studentRow.student_id === studentId
@@ -370,6 +383,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // NEW: Submit all academic results from the grid
   const submitAllAcademicResults = useCallback(async () => {
+    console.log('submitAllAcademicResults called'); // DEBUGGING
     if (!selectedTerm || !session) {
       alert('Please select term and session.');
       return;
@@ -440,6 +454,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // Prefill Psychomotor Skills (for new dedicated tab)
   const prefillPsychomotorSkills = useCallback(async () => {
+    console.log('prefillPsychomotorSkills called for student:', selectedStudent); // DEBUGGING
     if (!selectedStudent || !selectedTerm || !session) {
       alert('Please select student, term, and session to prefill psychomotor results.');
       return;
@@ -486,6 +501,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // Submit Psychomotor Skills (for new dedicated tab)
   const submitPsychomotorSkills = useCallback(async () => {
+    console.log('submitPsychomotorSkills called'); // DEBUGGING
     if (!selectedStudent || !selectedTerm || !session) {
       alert('Please select student, term, and session.');
       return;
@@ -546,6 +562,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // Prefill Attendance (for Academic & Attendance tab - single student)
   const prefillAttendance = useCallback(async () => {
+    console.log('prefillAttendance called for student:', selectedStudent); // DEBUGGING
     if (!selectedStudent || !selectedTerm || !session) {
       alert('Please select student, term, and session to prefill attendance.');
       return;
@@ -586,6 +603,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // Submit Attendance (for Academic & Attendance tab - single student)
   const submitAttendance = useCallback(async () => {
+    console.log('submitAttendance called'); // DEBUGGING
     if (!selectedStudent || !selectedTerm || !session || daysOpened === '' || daysPresent === '') {
       alert('Please select student, term, session, and provide days opened/present.');
       return;
@@ -640,6 +658,7 @@ function TeacherDashboard({ teacherUser, token }) {
 
   // Main useEffect for initial data loading
   useEffect(() => {
+    console.log('useEffect: Initial data loading triggered'); // DEBUGGING
     if (!token) {
       navigate('/login');
       return;
@@ -674,8 +693,11 @@ function TeacherDashboard({ teacherUser, token }) {
   }, [teacherUser, token, navigate, fetchClassStudents, fetchSubjects, fetchSessions]);
 
 
-  // Effect to re-fetch class students/subjects/academic grid if class, term, or session changes
+  // DEBUGGING: Temporarily COMMENT OUT this useEffect to check for blinking issue
+  // This useEffect re-fetches class students/subjects/academic grid if class, term, or session changes
+  /*
   useEffect(() => {
+    console.log('useEffect: Class/Tab/Session change detected. Dependencies:', { class: teacherInfo?.class, activeTab, selectedTerm, session, classStudentsLength: classStudents.length, subjectsLength: subjects.length }); // DEBUGGING
     if (teacherInfo?.class && activeTab === 'students') {
       fetchClassStudents(teacherInfo.class);
     }
@@ -687,17 +709,22 @@ function TeacherDashboard({ teacherUser, token }) {
       prefillAllAcademicResults();
     }
   }, [teacherInfo?.class, activeTab, selectedTerm, session, classStudents.length, subjects.length, fetchClassStudents, fetchSubjects, prefillAllAcademicResults]);
+  */
 
-
+  // DEBUGGING: Temporarily COMMENT OUT this useEffect to check for blinking issue
   // Effect for class overall results tab
+  /*
   useEffect(() => {
+    console.log('useEffect: Class Results tab active. Dependencies:', { activeTab, selectedTerm, session, class: teacherInfo?.class }); // DEBUGGING
     if (activeTab === 'class-results' && teacherInfo?.class && selectedTerm && session) {
       fetchClassOverallResults();
     }
   }, [activeTab, selectedTerm, session, teacherInfo?.class, fetchClassOverallResults]);
+  */
 
   // Handle session change
   const handleSessionChange = (e) => {
+    console.log('handleSessionChange called. New session:', e.target.value); // DEBUGGING
     const newSession = e.target.value;
     setSession(newSession);
     localStorage.setItem('selectedTeacherSession', newSession); // Persist selection

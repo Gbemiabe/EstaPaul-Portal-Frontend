@@ -29,7 +29,8 @@ function TeacherDashboard({ teacherUser, token }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [results, setResults] = useState(null);
   const [selectedTerm, setSelectedTerm] = useState('1st');
-  const [session, setSession] = useState('2023/2024'); // Frontend uses session string
+  const [session, setSession] = useState(''); // Initialize as empty string, will be set from localStorage or fetched sessions
+  const [availableSessions, setAvailableSessions] = useState([]); // New state for fetched sessions
   const [newSubject, setNewSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classOverallResults, setClassOverallResults] = useState(null);
@@ -42,7 +43,8 @@ function TeacherDashboard({ teacherUser, token }) {
   const [submittingAcademicResults, setSubmittingAcademicResults] = useState(false);
 
   // Psychomotor Skill States
-  const [attendance, setAttendance] = useState('');
+  const [psychomotorResults, setPsychomotorResults] = useState(null); // New state to hold psychomotor prefill data
+  const [attendanceSkill, setAttendanceSkill] = useState(''); // Renamed from 'attendance' to avoid clash and for clarity
   const [punctuality, setPunctuality] = useState('');
   const [neatness, setNeatness] = useState('');
   const [honesty, setHonesty] = useState('');
@@ -52,7 +54,7 @@ function TeacherDashboard({ teacherUser, token }) {
   const [submittingPsychomotorSkills, setSubmittingPsychomotorSkills] = useState(false);
 
 
-  // Attendance Specific States (kept separate as per original logic)
+  // Attendance Specific States
   const [daysOpened, setDaysOpened] = useState('');
   const [daysPresent, setDaysPresent] = useState('');
   const [attendanceSuccess, setAttendanceSuccess] = useState(null);
@@ -84,6 +86,31 @@ function TeacherDashboard({ teacherUser, token }) {
       setLoading(false);
     }
   }, [teacherUser, token, navigate]);
+
+  // Effect to load available sessions and set initial session from localStorage
+  useEffect(() => {
+    const loadAndSetInitialSession = async () => {
+      setLoading(true); // Indicate loading while fetching sessions
+      const sessionsData = await fetchSessions(); // Fetch sessions
+      if (sessionsData.length > 0) {
+        const storedSession = localStorage.getItem('selectedTeacherSession');
+        // Find if stored session exists in fetched sessions, otherwise default to the latest
+        const defaultSession = sessionsData[sessionsData.length - 1]?.name;
+        const initialSession = storedSession && sessionsData.some(s => s.name === storedSession)
+          ? storedSession
+          : defaultSession;
+
+        if (initialSession) {
+          setSession(initialSession);
+        } else if (sessionsData.length > 0) {
+          // Fallback if local storage is empty and no specific default logic
+          setSession(sessionsData[sessionsData.length - 1].name); // Set to the last available session
+        }
+      }
+      setLoading(false); // Finished loading sessions
+    };
+    loadAndSetInitialSession();
+  }, [token]); // Rerun if token changes (e.g., on login)
 
   const fetchClassStudents = async (teacherClass) => {
     setLoading(true);
@@ -130,12 +157,31 @@ function TeacherDashboard({ teacherUser, token }) {
     }
   };
 
+  const fetchSessions = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setAvailableSessions(data); // Store fetched sessions
+      return data; // Return data for immediate use in useEffect
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      return [];
+    }
+  };
+
 const fetchClassOverallResults = async () => {
   if (!teacherInfo?.class || !selectedTerm || !session) {
     alert('Please select both term and session to view class results');
     return;
   }
-  
+
   setFetchingClassResults(true);
   try {
     const response = await fetch(
@@ -227,7 +273,7 @@ useEffect(() => {
   if (activeTab === 'upload') {
     // Clear all academic and psychomotor states
     setPt1(''); setPt2(''); setPt3(''); setExam('');
-    setAttendance(''); setPunctuality(''); setNeatness('');
+    setAttendanceSkill(''); setPunctuality(''); setNeatness(''); // Corrected variable name
     setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
 
     if (selectedStudent && selectedTerm && session) { // session here is the string
@@ -240,28 +286,58 @@ useEffect(() => {
               setPt2(data.result.pt2 !== undefined && data.result.pt2 !== null ? data.result.pt2.toString() : '');
               setPt3(data.result.pt3 !== undefined && data.result.pt3 !== null ? data.result.pt3.toString() : '');
               setExam(data.result.exam !== undefined && data.result.exam !== null ? data.result.exam.toString() : '');
+            } else {
+                setPt1(''); setPt2(''); setPt3(''); setExam('');
             }
           });
+      } else { // If no subject selected, clear academic fields
+        setPt1(''); setPt2(''); setPt3(''); setExam('');
       }
 
       // Prefill Psychomotor Skills
       fetchPsychomotorForPrefill(selectedStudent, selectedTerm, session)
         .then(data => {
           if (data && data.psychomotor) {
-            setAttendance(data.psychomotor.attendance !== undefined && data.psychomotor.attendance !== null ? data.psychomotor.attendance.toString() : '');
+            setPsychomotorResults(data.psychomotor); // Store the full psychomotor object
+            setAttendanceSkill(data.psychomotor.attendance !== undefined && data.psychomotor.attendance !== null ? data.psychomotor.attendance.toString() : ''); // Corrected variable name
             setPunctuality(data.psychomotor.punctuality !== undefined && data.psychomotor.punctuality !== null ? data.psychomotor.punctuality.toString() : '');
             setNeatness(data.psychomotor.neatness !== undefined && data.psychomotor.neatness !== null ? data.psychomotor.neatness.toString() : '');
             setHonesty(data.psychomotor.honesty !== undefined && data.psychomotor.honesty !== null ? data.psychomotor.honesty.toString() : '');
             setResponsibility(data.psychomotor.responsibility !== undefined && data.psychomotor.responsibility !== null ? data.psychomotor.responsibility.toString() : '');
             setCreativity(data.psychomotor.creativity !== undefined && data.psychomotor.creativity !== null ? data.psychomotor.creativity.toString() : '');
             setSports(data.psychomotor.sports !== undefined && data.psychomotor.sports !== null ? data.psychomotor.sports.toString() : '');
+          } else {
+            // Clear psychomotor fields if no data
+            setPsychomotorResults(null);
+            setAttendanceSkill(''); setPunctuality(''); setNeatness('');
+            setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
+          }
+
+          // Handle attendance days which might also come from psychomotor endpoint
+          if (data && data.days_opened !== undefined && data.days_present !== undefined) {
+              setDaysOpened(data.days_opened.toString());
+              setDaysPresent(data.days_present.toString());
+          } else {
+              setDaysOpened('');
+              setDaysPresent('');
           }
         });
+    } else {
+        // Clear all fields if selections are incomplete for prefilling
+        setPt1(''); setPt2(''); setPt3(''); setExam('');
+        setAttendanceSkill(''); setPunctuality(''); setNeatness('');
+        setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
+        setDaysOpened(''); setDaysPresent('');
     }
   }
-}, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]);
+}, [selectedStudent, selectedSubject, selectedTerm, session, activeTab, token]); // Dependencies
 
-// Prefill effect for 'attendance' tab (kept separate from upload for clarity)
+// Prefill effect for 'attendance' tab (simplified, as it's now covered by 'upload' tab's psychomotor fetch)
+// You might choose to remove this separate effect if the above combined effect serves both purposes.
+// If attendance data is truly separate, keep this and modify accordingly.
+// Given your current code structure, this section will benefit from the combined prefill in the 'upload' tab.
+// I recommend keeping only one robust prefill useEffect for common selectors if attendance forms are part of upload.
+// For now, I'm keeping it separate but simplifying to use the same psychomotor fetch that can bring attendance data.
 useEffect(() => {
   if (activeTab === 'attendance') {
     setDaysOpened('');
@@ -274,8 +350,14 @@ useEffect(() => {
           if (data && data.days_opened !== undefined && data.days_present !== undefined) {
             setDaysOpened(data.days_opened.toString());
             setDaysPresent(data.days_present.toString());
+          } else {
+            setDaysOpened('');
+            setDaysPresent('');
           }
         });
+    } else {
+        setDaysOpened('');
+        setDaysPresent('');
     }
   }
 }, [activeTab, selectedStudent, selectedTerm, session, token]);
@@ -384,6 +466,12 @@ useEffect(() => {
     }
   };
 
+  const handleSessionChange = (e) => {
+    const newSession = e.target.value;
+    setSession(newSession);
+    localStorage.setItem('selectedTeacherSession', newSession); // Persist selected session
+  };
+
   // --- NEW: Handle Psychomotor Skills Submission ---
   const handleSubmitPsychomotorSkills = async (e) => {
     e.preventDefault();
@@ -393,7 +481,8 @@ useEffect(() => {
     }
 
     // Validate Psychomotor Skills only
-    if ([attendance, punctuality, neatness, honesty, responsibility, creativity, sports].some(skill => skill === '')) {
+    // Corrected to use attendanceSkill
+    if ([attendanceSkill, punctuality, neatness, honesty, responsibility, creativity, sports].some(skill => skill === '')) {
       alert('Please select a grade for all psychomotor skills.');
       return;
     }
@@ -411,7 +500,7 @@ useEffect(() => {
           student_id: selectedStudent,
           term: selectedTerm,
           session, // Frontend sends session string
-          attendance,
+          attendance: attendanceSkill, // Corrected variable name
           punctuality,
           neatness,
           honesty,
@@ -443,7 +532,7 @@ useEffect(() => {
   };
 
   const resetPsychomotorForm = () => {
-    setAttendance(''); setPunctuality(''); setNeatness('');
+    setAttendanceSkill(''); setPunctuality(''); setNeatness(''); // Corrected variable name
     setHonesty(''); setResponsibility(''); setCreativity(''); setSports('');
   };
 
@@ -763,14 +852,23 @@ useEffect(() => {
 
                   <div className="form-group">
                     <label htmlFor="academic-session">Academic Session: <span className="required">*</span></label>
-                    <input
-                      type="text"
+                    <select
                       id="academic-session"
                       value={session}
-                      onChange={(e) => setSession(e.target.value)}
-                      placeholder="e.g., 2023/2024"
+                      onChange={handleSessionChange} {/* Use the new handler */}
                       required
-                    />
+                      disabled={loading} // Disable if sessions are still loading
+                    >
+                      {availableSessions.length > 0 ? (
+                        availableSessions.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Loading sessions...</option>
+                      )}
+                    </select>
                   </div>
               </div>
 
@@ -896,7 +994,8 @@ useEffect(() => {
 
                 <div className="form-grid-3">
                   {[
-                    { key: 'attendance', label: 'Attendance', value: attendance, setter: setAttendance },
+                    // Corrected 'attendance' to 'attendanceSkill' in the map
+                    { key: 'attendanceSkill', label: 'Attendance', value: attendanceSkill, setter: setAttendanceSkill },
                     { key: 'punctuality', label: 'Punctuality', value: punctuality, setter: setPunctuality },
                     { key: 'neatness', label: 'Neatness', value: neatness, setter: setNeatness },
                     { key: 'honesty', label: 'Honesty', value: honesty, setter: setHonesty },
@@ -985,14 +1084,23 @@ useEffect(() => {
 
                   <div className="form-group">
                     <label htmlFor="attendance-session">Academic Session: <span className="required">*</span></label>
-                    <input
-                      type="text"
+                    <select
                       id="attendance-session"
                       value={session}
-                      onChange={(e) => setSession(e.target.value)}
-                      placeholder="e.g., 2023/2024"
+                      onChange={handleSessionChange} {/* Use the new handler */}
                       required
-                    />
+                      disabled={loading}
+                    >
+                      {availableSessions.length > 0 ? (
+                        availableSessions.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Loading sessions...</option>
+                      )}
+                    </select>
                   </div>
                 </div>
 
@@ -1291,13 +1399,22 @@ useEffect(() => {
                     <option value="2nd">Second Term</option>
                     <option value="3rd">Third Term</option>
                   </select>
-                  <input
-                    type="text"
+                  <select
                     value={session}
-                    onChange={(e) => setSession(e.target.value)}
-                    placeholder="Session (e.g., 2023/2024)"
+                    onChange={handleSessionChange} {/* Use the new handler */}
                     className="session-input"
-                  />
+                    disabled={loading}
+                  >
+                    {availableSessions.length > 0 ? (
+                      availableSessions.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Loading sessions...</option>
+                    )}
+                  </select>
                   <button
                     onClick={fetchClassOverallResults}
                     className="btn btn-primary"

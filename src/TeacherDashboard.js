@@ -816,8 +816,7 @@ useEffect(() => {
                   <FaArrowLeft /> Back to Subjects
                 </button>
               </div>
-
-              {/* Common Student/Term/Session Selector */}
+            
               <div className="common-selectors">
                   <div className="form-group">
                     <label htmlFor="select-student">Select Student: <span className="required">*</span></label>
@@ -855,7 +854,7 @@ useEffect(() => {
                     <select
                       id="academic-session"
                       value={session}
-                      onChange={handleSessionChange} {/* Use the new handler */}
+                      onChange={handleSessionChange} 
                       required
                       disabled={loading} // Disable if sessions are still loading
                     >
@@ -873,7 +872,7 @@ useEffect(() => {
               </div>
 
 
-              {/* --- ACADEMIC SCORES FORM --- */}
+      
               <form onSubmit={handleSubmitAcademicScores} className="data-form upload-form academic-form">
                 <h3 className="form-section-heading">Academic Scores {prefilling && selectedStudent && selectedSubject ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
 
@@ -988,7 +987,7 @@ useEffect(() => {
                 </div>
               </form>
 
-              {/* --- PSYCHOMOTOR SKILLS FORM --- */}
+              /* --- PSYCHOMOTOR SKILLS FORM --- */
               <form onSubmit={handleSubmitPsychomotorSkills} className="data-form upload-form psychomotor-form">
                 <h3 className="form-section-heading">Psychomotor Skills Assessment {prefilling && selectedStudent ? <FaSpinner className="spinner-icon-inline" /> : ''}</h3>
 
@@ -1087,7 +1086,7 @@ useEffect(() => {
                     <select
                       id="attendance-session"
                       value={session}
-                      onChange={handleSessionChange} {/* Use the new handler */}
+                      onChange={handleSessionChange} 
                       required
                       disabled={loading}
                     >
@@ -1401,7 +1400,7 @@ useEffect(() => {
                   </select>
                   <select
                     value={session}
-                    onChange={handleSessionChange} {/* Use the new handler */}
+                    onChange={handleSessionChange} 
                     className="session-input"
                     disabled={loading}
                   >

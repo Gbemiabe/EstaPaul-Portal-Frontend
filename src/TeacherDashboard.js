@@ -783,7 +783,7 @@ function TeacherDashboard({ teacherUser, token }) {
                     }}
                     required
                   >
-                    {availableSessions.map(session => (
+                    {Array.isArray(availableSessions) && availableSessions.map(session => (
                       <option key={session.id} value={session.name}>{session.name}</option>
                     ))}
                   </select>

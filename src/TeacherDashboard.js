@@ -1061,7 +1061,7 @@ function TeacherDashboard({ teacherUser, token }) {
                 {daysOpened !== '' && daysPresent !== '' && parseInt(daysOpened) > 0 && (
                   <div className="attendance-preview">
                     <h4>Attendance Rate:</h4>
-                    <p>{Math.round((parseInt(daysPresent || 0) / parseInt(daysOpened || 1) * 100)}% ({daysPresent}/{daysOpened} days)</p>
+                    <p>{Math.round((parseInt(daysPresent || 0) / parseInt(daysOpened || 1)) * 100)}% ({daysPresent}/{daysOpened} days)</p>
                   </div>
                 )}
 
